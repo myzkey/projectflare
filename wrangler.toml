@@ -1,0 +1,19 @@
+name = "projectflare"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "projectflare"
+database_id = "replace-with-cloudflare-d1-database-id"
+
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "projectflare-files"
+
+[[queues.producers]]
+binding = "PROJECTFLARE_QUEUE"
+queue = "projectflare-events"
+
+[[queues.consumers]]
+queue = "projectflare-events"

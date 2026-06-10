@@ -1,0 +1,19 @@
+{
+  "name": "projectflare",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cloudflare-native lightweight project management for small teams.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply projectflare --local",
+    "db:migrate": "wrangler d1 migrations apply projectflare --remote",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "4.20260610.1",
+    "typescript": "5.9.3",
+    "wrangler": "4.99.0"
+  }
+}
