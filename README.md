@@ -99,6 +99,19 @@ pnpm dev
 
 Then open the URL printed by Wrangler.
 
+## Commit Messages
+
+ProjectFlare uses Conventional Commits. Commit messages are checked by commitlint through Husky.
+
+Examples:
+
+```txt
+feat: add workspace invitations
+fix: handle missing webhook endpoint
+refactor: extract task use cases
+test: cover github webhook processing
+```
+
 ## Cloudflare Setup
 
 1. Create a D1 database:

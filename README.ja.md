@@ -100,6 +100,19 @@ pnpm dev
 
 Wrangler が表示するローカルURLを開くと、ProjectFlareの初期画面を確認できます。
 
+## コミットメッセージ
+
+ProjectFlare は Conventional Commits に準拠します。コミットメッセージは Husky 経由の commitlint で検証されます。
+
+例:
+
+```txt
+feat: add workspace invitations
+fix: handle missing webhook endpoint
+refactor: extract task use cases
+test: cover github webhook processing
+```
+
 ## Cloudflareへのセットアップ
 
 1. D1 database を作成します。
