@@ -1,5 +1,5 @@
-import type { Task } from "../../../domain/task";
-import type { TaskRepository, TaskUpdatePatch, TaskUseCasePorts } from "../../../ports/tasks";
+import type { Task } from "../../../../../core/src/domain/task";
+import type { TaskRepository, TaskUpdatePatch, TaskUseCasePorts } from "../../../../../core/src/ports/tasks";
 import type { Env } from "../env";
 
 export function createTaskUseCasePorts(env: Env): TaskUseCasePorts {

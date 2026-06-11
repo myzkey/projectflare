@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { processGitHubWebhookUseCase } from "../src/application/usecases/process-github-webhook";
-import type { GitHubSyncPorts, GitHubTaskRecord } from "../src/ports/github-sync";
+import { processGitHubWebhookUseCase } from "../packages/core/src/application/usecases/process-github-webhook";
+import type { GitHubSyncPorts, GitHubTaskRecord } from "../packages/core/src/ports/github-sync";
 
 function createPorts(options: { projectId?: string | null; task?: GitHubTaskRecord | null } = {}) {
   const createdTasks: unknown[] = [];

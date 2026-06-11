@@ -1,22 +1,26 @@
-import { handleGenericWebhookUseCase } from "../../application/usecases/handle-generic-webhook";
+import { handleGenericWebhookUseCase } from "../../../../core/src/application/usecases/handle-generic-webhook";
 import {
   createProjectTaskUseCase,
   listProjectTasksUseCase,
   updateTaskUseCase,
-} from "../../application/usecases/manage-tasks";
-import { processGitHubWebhookUseCase } from "../../application/usecases/process-github-webhook";
-import { ApplicationError } from "../../domain/errors";
-import { type GitHubRepository, type GitHubWebhookPayload, repositoryFullNameFromPayload } from "../../domain/github";
-import type { Notification, NotificationChannel } from "../../domain/notification";
-import type { Project, Workspace } from "../../domain/project";
-import { createApiToken, sha256Hex, verifyGitHubSignature } from "../../domain/security";
-import { type Task as DomainTask, normalizePriority, taskStatusLabels } from "../../domain/task";
-import type { WikiPage, WikiRevision } from "../../domain/wiki";
+} from "../../../../core/src/application/usecases/manage-tasks";
+import { processGitHubWebhookUseCase } from "../../../../core/src/application/usecases/process-github-webhook";
+import { ApplicationError } from "../../../../core/src/domain/errors";
+import {
+  type GitHubRepository,
+  type GitHubWebhookPayload,
+  repositoryFullNameFromPayload,
+} from "../../../../core/src/domain/github";
+import type { Notification, NotificationChannel } from "../../../../core/src/domain/notification";
+import type { Project, Workspace } from "../../../../core/src/domain/project";
+import { createApiToken, sha256Hex, verifyGitHubSignature } from "../../../../core/src/domain/security";
+import { type Task as DomainTask, normalizePriority, taskStatusLabels } from "../../../../core/src/domain/task";
+import type { WikiPage, WikiRevision } from "../../../../core/src/domain/wiki";
+import type { GitHubQueueMessage, ProjectFlareQueueMessage } from "../../../../core/src/ports/queue";
 import { createGenericWebhookPorts } from "../../infrastructure/cloudflare/d1/generic-webhook-adapter";
 import { createGitHubSyncPorts } from "../../infrastructure/cloudflare/d1/github-sync-adapter";
 import { createTaskUseCasePorts } from "../../infrastructure/cloudflare/d1/task-repository";
 import type { Env } from "../../infrastructure/cloudflare/env";
-import type { GitHubQueueMessage, ProjectFlareQueueMessage } from "../../ports/queue";
 import { renderApp } from "../ui/app";
 import { htmlResponse, json, jsonError } from "./responses";
 

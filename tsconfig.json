@@ -11,12 +11,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": [
-    "src/**/*.ts",
-    "frontend/**/*.ts",
-    "frontend/**/*.tsx",
-    "test/**/*.ts",
-    "test/**/*.tsx",
-    "vitest.config.ts"
-  ]
+  "include": ["packages/**/*.ts", "apps/**/*.ts", "apps/**/*.tsx", "test/**/*.ts", "test/**/*.tsx", "vitest.config.ts"]
 }

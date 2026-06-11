@@ -1,5 +1,5 @@
-import { sha256Hex } from "../../../domain/security";
-import type { GenericWebhookPorts, ProjectNotificationInput } from "../../../ports/generic-webhook";
+import { sha256Hex } from "../../../../../core/src/domain/security";
+import type { GenericWebhookPorts, ProjectNotificationInput } from "../../../../../core/src/ports/generic-webhook";
 import type { Env } from "../env";
 
 export function createGenericWebhookPorts(

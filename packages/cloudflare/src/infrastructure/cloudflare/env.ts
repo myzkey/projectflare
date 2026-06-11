@@ -1,4 +1,4 @@
-import type { ProjectFlareQueueMessage } from "../../ports/queue";
+import type { ProjectFlareQueueMessage } from "../../../../core/src/ports/queue";
 
 export type Env = {
   ASSETS?: Fetcher;

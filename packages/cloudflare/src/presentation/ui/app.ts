@@ -1,4 +1,4 @@
-import { taskStatusLabels } from "../../domain/task";
+import { taskStatusLabels } from "../../../../core/src/domain/task";
 
 export function renderApp(): string {
   return `<!doctype html>

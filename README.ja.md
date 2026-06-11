@@ -106,6 +106,17 @@ UI だけを素早く確認したい場合は Vite dev server を起動できま
 pnpm dev:ui
 ```
 
+## リポジトリ構成
+
+ProjectFlare は EmDash を参考にした小さな pnpm workspace として構成します。
+
+```txt
+apps/web                 React admin UI
+packages/core           domain、use case、port
+packages/cloudflare     Worker entrypoint と Cloudflare adapter
+migrations              D1 migration
+```
+
 ## コミットメッセージ
 
 ProjectFlare は Conventional Commits に準拠します。コミットメッセージは Husky 経由の commitlint で検証されます。

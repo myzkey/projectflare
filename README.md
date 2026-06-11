@@ -105,6 +105,17 @@ For UI-only iteration, run the Vite dev server:
 pnpm dev:ui
 ```
 
+## Repository Layout
+
+ProjectFlare is organized as a small pnpm workspace inspired by EmDash:
+
+```txt
+apps/web                 React admin UI
+packages/core           domain, use cases, and ports
+packages/cloudflare     Worker entrypoint and Cloudflare adapters
+migrations              D1 migrations
+```
+
 ## Commit Messages
 
 ProjectFlare uses Conventional Commits. Commit messages are checked by commitlint through Husky.

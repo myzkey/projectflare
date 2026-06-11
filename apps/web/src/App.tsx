@@ -84,7 +84,6 @@ export function App() {
     return { open, review, done, overdue };
   }, [tasks]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: boot is intentionally run once when the React app mounts.
   useEffect(() => {
     void boot();
   }, []);

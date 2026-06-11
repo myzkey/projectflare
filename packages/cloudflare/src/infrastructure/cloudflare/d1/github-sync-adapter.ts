@@ -4,7 +4,7 @@ import type {
   GitHubTaskCreateInput,
   GitHubTaskRecord,
   GitHubTaskUpdateInput,
-} from "../../../ports/github-sync";
+} from "../../../../../core/src/ports/github-sync";
 import type { Env } from "../env";
 
 export function createGitHubSyncPorts(

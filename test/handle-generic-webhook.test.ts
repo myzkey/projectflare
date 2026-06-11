@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { handleGenericWebhookUseCase } from "../src/application/usecases/handle-generic-webhook";
-import { ApplicationError } from "../src/domain/errors";
-import type { GenericWebhookPorts, WebhookEndpointRecord } from "../src/ports/generic-webhook";
+import { handleGenericWebhookUseCase } from "../packages/core/src/application/usecases/handle-generic-webhook";
+import { ApplicationError } from "../packages/core/src/domain/errors";
+import type { GenericWebhookPorts, WebhookEndpointRecord } from "../packages/core/src/ports/generic-webhook";
 
 function createPorts(endpoint: WebhookEndpointRecord | null, options: { queue?: boolean; tokenValid?: boolean } = {}) {
   const tasks: unknown[] = [];

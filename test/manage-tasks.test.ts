@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { createProjectTaskUseCase, updateTaskUseCase } from "../src/application/usecases/manage-tasks";
-import { ApplicationError } from "../src/domain/errors";
-import type { Task } from "../src/domain/task";
-import type { TaskUpdatePatch, TaskUseCasePorts } from "../src/ports/tasks";
+import { createProjectTaskUseCase, updateTaskUseCase } from "../packages/core/src/application/usecases/manage-tasks";
+import { ApplicationError } from "../packages/core/src/domain/errors";
+import type { Task } from "../packages/core/src/domain/task";
+import type { TaskUpdatePatch, TaskUseCasePorts } from "../packages/core/src/ports/tasks";
 
 function createPorts(seedTasks: Task[] = []) {
   const tasks = new Map(seedTasks.map((task) => [task.id, task]));

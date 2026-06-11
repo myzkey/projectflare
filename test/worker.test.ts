@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import worker from "../src/index";
+import worker from "../packages/cloudflare/src";
 
 const env = {};
 

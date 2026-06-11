@@ -2,7 +2,7 @@
 
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { App } from "../frontend/src/App";
+import { App } from "../apps/web/src/App";
 
 const responses: Record<string, unknown> = {
   "/api/me": { id: "usr_1", name: "Local User", email: "local@example.com", group: null },
