@@ -1,0 +1,844 @@
+import {
+  Bell,
+  BookOpenText,
+  CheckCircle2,
+  GitBranch,
+  GitPullRequest,
+  LayoutDashboard,
+  Link2,
+  Loader2,
+  MessageSquare,
+  Plus,
+  RadioTower,
+  Save,
+  Send,
+  Sparkles,
+} from "lucide-react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { api } from "./api";
+import type {
+  AccessUser,
+  GitHubEvent,
+  GitHubRepository,
+  Notification,
+  NotificationChannel,
+  Project,
+  Task,
+  TaskComment,
+  TaskDependency,
+  TaskPriority,
+  TaskStatus,
+  WebhookEndpoint,
+  WikiPage,
+  WikiRevision,
+  Workspace,
+} from "./types";
+
+const statusLabels: Record<TaskStatus, string> = {
+  todo: "Todo",
+  in_progress: "In Progress",
+  review: "Review",
+  done: "Done",
+  archived: "Archived",
+};
+
+const statuses = Object.keys(statusLabels) as TaskStatus[];
+const priorities: TaskPriority[] = ["low", "medium", "high", "urgent"];
+const tabs = ["overview", "plan", "wiki", "integrations"] as const;
+type Tab = (typeof tabs)[number];
+
+export function App() {
+  const [me, setMe] = useState<AccessUser | null>(null);
+  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [project, setProject] = useState<Project | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [dependencies, setDependencies] = useState<TaskDependency[]>([]);
+  const [comments, setComments] = useState<TaskComment[]>([]);
+  const [wikiPages, setWikiPages] = useState<WikiPage[]>([]);
+  const [wikiRevisions, setWikiRevisions] = useState<WikiRevision[]>([]);
+  const [githubRepos, setGitHubRepos] = useState<GitHubRepository[]>([]);
+  const [githubEvents, setGitHubEvents] = useState<GitHubEvent[]>([]);
+  const [webhookEndpoints, setWebhookEndpoints] = useState<WebhookEndpoint[]>([]);
+  const [notificationChannels, setNotificationChannels] = useState<NotificationChannel[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [selectedWikiPageId, setSelectedWikiPageId] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>("overview");
+  const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? null;
+  const selectedWikiPage = wikiPages.find((page) => page.id === selectedWikiPageId) ?? wikiPages[0] ?? null;
+  const selectedTaskIdForLoad = selectedTask?.id ?? null;
+  const selectedWikiPageIdForLoad = selectedWikiPage?.id ?? null;
+
+  const stats = useMemo(() => {
+    const open = tasks.filter((task) => !["done", "archived"].includes(task.status)).length;
+    const review = tasks.filter((task) => task.status === "review").length;
+    const done = tasks.filter((task) => task.status === "done").length;
+    const overdue = tasks.filter(
+      (task) => task.due_on && task.status !== "done" && new Date(task.due_on) < new Date(),
+    ).length;
+    return { open, review, done, overdue };
+  }, [tasks]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: boot is intentionally run once when the React app mounts.
+  useEffect(() => {
+    void boot();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedTaskIdForLoad) {
+      setComments([]);
+      return;
+    }
+    void api
+      .comments(selectedTaskIdForLoad)
+      .then(setComments)
+      .catch((caught) => setError(caught instanceof Error ? caught.message : "Unknown error"));
+  }, [selectedTaskIdForLoad]);
+
+  useEffect(() => {
+    if (!selectedWikiPageIdForLoad) {
+      setWikiRevisions([]);
+      return;
+    }
+    void api
+      .wikiRevisions(selectedWikiPageIdForLoad)
+      .then(setWikiRevisions)
+      .catch((caught) => setError(caught instanceof Error ? caught.message : "Unknown error"));
+  }, [selectedWikiPageIdForLoad]);
+
+  async function run(action: () => Promise<void>) {
+    try {
+      setError(null);
+      await action();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unknown error");
+    }
+  }
+
+  async function boot() {
+    await run(async () => {
+      setLoading(true);
+      const [currentUser, workspaces] = await Promise.all([api.me(), api.workspaces()]);
+      const firstWorkspace = workspaces[0] ?? null;
+      setMe(currentUser);
+      setWorkspace(firstWorkspace);
+      if (firstWorkspace) {
+        const nextProjects = await api.projects(firstWorkspace.id);
+        setProjects(nextProjects);
+        const firstProject = nextProjects[0] ?? null;
+        setProject(firstProject);
+        if (firstProject) await refreshProject(firstWorkspace.id, firstProject);
+      }
+      setLoading(false);
+    });
+  }
+
+  async function refreshProject(workspaceId = workspace?.id, currentProject = project) {
+    if (!workspaceId || !currentProject) return;
+    const [
+      nextTasks,
+      nextDependencies,
+      nextWiki,
+      nextRepos,
+      nextEvents,
+      nextEndpoints,
+      nextChannels,
+      nextNotifications,
+    ] = await Promise.all([
+      api.tasks(currentProject.id),
+      api.projectDependencies(currentProject.id),
+      api.wikiPages(currentProject.id),
+      api.githubRepositories(workspaceId),
+      api.githubEvents(currentProject.id),
+      api.webhookEndpoints(currentProject.id),
+      api.notificationChannels(currentProject.id),
+      api.notifications(currentProject.id),
+    ]);
+
+    setTasks(nextTasks);
+    setDependencies(nextDependencies);
+    setWikiPages(nextWiki);
+    setGitHubRepos(nextRepos);
+    setGitHubEvents(nextEvents);
+    setWebhookEndpoints(nextEndpoints);
+    setNotificationChannels(nextChannels);
+    setNotifications(nextNotifications);
+    setSelectedTaskId((current) =>
+      current && nextTasks.some((task) => task.id === current) ? current : (nextTasks[0]?.id ?? null),
+    );
+    setSelectedWikiPageId((current) =>
+      current && nextWiki.some((page) => page.id === current) ? current : (nextWiki[0]?.id ?? null),
+    );
+  }
+
+  async function selectProject(projectId: string) {
+    const nextProject = projects.find((item) => item.id === projectId) ?? null;
+    setProject(nextProject);
+    setSelectedTaskId(null);
+    setSelectedWikiPageId(null);
+    if (workspace && nextProject) await run(async () => refreshProject(workspace.id, nextProject));
+  }
+
+  async function createProject(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!workspace) return;
+    const form = event.currentTarget;
+    const body = Object.fromEntries(new FormData(form).entries());
+    await run(async () => {
+      await api.createProject(workspace.id, body);
+      form.reset();
+      const nextProjects = await api.projects(workspace.id);
+      setProjects(nextProjects);
+      const nextProject = nextProjects.at(-1) ?? nextProjects[0] ?? null;
+      setProject(nextProject);
+      if (nextProject) await refreshProject(workspace.id, nextProject);
+    });
+  }
+
+  async function createTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    const form = event.currentTarget;
+    const body = Object.fromEntries(new FormData(form).entries());
+    await run(async () => {
+      await api.createTask(project.id, body);
+      form.reset();
+      await refreshProject();
+    });
+  }
+
+  async function saveTask(task: Task, patch: Partial<Task>) {
+    await run(async () => {
+      await api.updateTask(task.id, patch);
+      await refreshProject();
+    });
+  }
+
+  async function createComment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedTask) return;
+    const form = event.currentTarget;
+    const body = String(new FormData(form).get("body") || "");
+    await run(async () => {
+      await api.createComment(selectedTask.id, body);
+      form.reset();
+      setComments(await api.comments(selectedTask.id));
+    });
+  }
+
+  async function createDependency(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(event.currentTarget).entries());
+    if (!data.task_id || !data.depends_on_task_id || data.task_id === data.depends_on_task_id) return;
+    await run(async () => {
+      await api.createDependency(String(data.task_id), String(data.depends_on_task_id));
+      await refreshProject();
+    });
+  }
+
+  async function saveWiki(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    const body = Object.fromEntries(new FormData(event.currentTarget).entries());
+    await run(async () => {
+      const saved = await api.saveWikiPage(project.id, selectedWikiPage?.id ?? null, body);
+      setSelectedWikiPageId(saved.id);
+      await refreshProject();
+    });
+  }
+
+  async function createGitHubRepository(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!workspace || !project) return;
+    const form = event.currentTarget;
+    const body = { ...Object.fromEntries(new FormData(form).entries()), project_id: project.id };
+    await run(async () => {
+      await api.createGitHubRepository(workspace.id, body);
+      form.reset();
+      await refreshProject();
+    });
+  }
+
+  async function createWebhookEndpoint(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    const form = event.currentTarget;
+    const body = Object.fromEntries(new FormData(form).entries());
+    await run(async () => {
+      const endpoint = await api.createWebhookEndpoint(project.id, body);
+      setNotice(
+        `New token: ${endpoint.token ?? "hidden"} / ${endpoint.endpoint_url ?? `/api/webhooks/generic/${endpoint.id}`}`,
+      );
+      form.reset();
+      await refreshProject();
+    });
+  }
+
+  async function createNotificationChannel(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    const form = event.currentTarget;
+    const body = Object.fromEntries(new FormData(form).entries());
+    await run(async () => {
+      await api.createNotificationChannel(project.id, body);
+      form.reset();
+      await refreshProject();
+    });
+  }
+
+  if (loading) {
+    return (
+      <main className="loading-screen">
+        <Loader2 className="spin" size={32} />
+        <span>Loading ProjectFlare</span>
+      </main>
+    );
+  }
+
+  return (
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand-mark">
+          <span className="flare-block" />
+          <div>
+            <strong>ProjectFlare</strong>
+            <small>Cloudflare-native project OS</small>
+          </div>
+        </div>
+
+        <nav className="nav-tabs" aria-label="Primary">
+          {tabs.map((item) => (
+            <button key={item} type="button" className={tab === item ? "active" : ""} onClick={() => setTab(item)}>
+              {tabIcon(item)}
+              <span>{tabLabel(item)}</span>
+            </button>
+          ))}
+        </nav>
+
+        <section className="user-strip">
+          <small>Signed in</small>
+          <strong>{me?.name}</strong>
+          <span>{me?.email}</span>
+        </section>
+      </aside>
+
+      <main className="workspace">
+        <header className="topbar">
+          <div>
+            <small>{workspace?.name ?? "No workspace"}</small>
+            <h1>{project?.name ?? "Create a project"}</h1>
+            <p>{project?.description ?? "Tasks, notes, webhooks, and delivery signals in one Worker."}</p>
+          </div>
+          <div className="top-actions">
+            <span className="signal">
+              <Sparkles size={16} />
+              {project?.github_repository_url ? "GitHub linked" : "Ready"}
+            </span>
+            <button type="button" className="icon-button" onClick={() => void run(async () => refreshProject())}>
+              <RadioTower size={18} />
+            </button>
+          </div>
+        </header>
+
+        {(error || notice) && (
+          <div className={error ? "toast error" : "toast"}>
+            {error ?? notice}
+            <button type="button" onClick={() => (error ? setError(null) : setNotice(null))}>
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        <div className="project-switcher">
+          {projects.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={item.id === project?.id ? "active" : ""}
+              onClick={() => void selectProject(item.id)}
+            >
+              {item.name}
+            </button>
+          ))}
+        </div>
+
+        {tab === "overview" && (
+          <Overview
+            stats={stats}
+            tasks={tasks}
+            selectedTask={selectedTask}
+            comments={comments}
+            onSelectTask={setSelectedTaskId}
+            onSaveTask={saveTask}
+            onCreateTask={createTask}
+            onCreateProject={createProject}
+            onCreateComment={createComment}
+          />
+        )}
+        {tab === "plan" && <Plan tasks={tasks} dependencies={dependencies} onCreateDependency={createDependency} />}
+        {tab === "wiki" && (
+          <Wiki
+            pages={wikiPages}
+            selectedPage={selectedWikiPage}
+            revisions={wikiRevisions}
+            onSelectPage={setSelectedWikiPageId}
+            onSaveWiki={saveWiki}
+          />
+        )}
+        {tab === "integrations" && project && workspace && (
+          <Integrations
+            project={project}
+            workspace={workspace}
+            githubRepos={githubRepos}
+            githubEvents={githubEvents}
+            webhookEndpoints={webhookEndpoints}
+            notificationChannels={notificationChannels}
+            notifications={notifications}
+            onCreateGitHubRepository={createGitHubRepository}
+            onCreateWebhookEndpoint={createWebhookEndpoint}
+            onCreateNotificationChannel={createNotificationChannel}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+function Overview(props: {
+  stats: { open: number; review: number; done: number; overdue: number };
+  tasks: Task[];
+  selectedTask: Task | null;
+  comments: TaskComment[];
+  onSelectTask(id: string): void;
+  onSaveTask(task: Task, patch: Partial<Task>): Promise<void>;
+  onCreateTask(event: FormEvent<HTMLFormElement>): Promise<void>;
+  onCreateProject(event: FormEvent<HTMLFormElement>): Promise<void>;
+  onCreateComment(event: FormEvent<HTMLFormElement>): Promise<void>;
+}) {
+  return (
+    <section className="dashboard-grid">
+      <div className="stat-band">
+        <Metric label="Open" value={props.stats.open} />
+        <Metric label="Review" value={props.stats.review} />
+        <Metric label="Done" value={props.stats.done} />
+        <Metric label="Overdue" value={props.stats.overdue} tone={props.stats.overdue ? "hot" : undefined} />
+      </div>
+
+      <section className="panel task-panel">
+        <PanelTitle icon={<CheckCircle2 size={18} />} title="Tasks" meta={`${props.tasks.length} tasks`} />
+        <div className="task-table">
+          {props.tasks.map((task) => (
+            <article key={task.id} className={props.selectedTask?.id === task.id ? "task-row selected" : "task-row"}>
+              <button type="button" className="task-name" onClick={() => props.onSelectTask(task.id)}>
+                <strong>{task.title}</strong>
+                <span>{task.description || "No description"}</span>
+              </button>
+              <select
+                defaultValue={task.status}
+                onChange={(event) => void props.onSaveTask(task, { status: event.currentTarget.value as TaskStatus })}
+              >
+                {statuses.map((status) => (
+                  <option key={status} value={status}>
+                    {statusLabels[status]}
+                  </option>
+                ))}
+              </select>
+              <select
+                defaultValue={task.priority}
+                onChange={(event) =>
+                  void props.onSaveTask(task, { priority: event.currentTarget.value as TaskPriority })
+                }
+              >
+                {priorities.map((priority) => (
+                  <option key={priority} value={priority}>
+                    {priority}
+                  </option>
+                ))}
+              </select>
+              <Progress value={task.progress} />
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <aside className="panel side-stack">
+        <PanelTitle icon={<Plus size={18} />} title="Create" meta="project / task" />
+        <form className="form-grid" onSubmit={(event) => void props.onCreateTask(event)}>
+          <input name="title" placeholder="Task title" required />
+          <textarea name="description" placeholder="Description" />
+          <div className="two-col">
+            <select name="priority" defaultValue="medium">
+              {priorities.map((priority) => (
+                <option key={priority} value={priority}>
+                  {priority}
+                </option>
+              ))}
+            </select>
+            <input name="dueDate" type="date" />
+          </div>
+          <button type="submit">
+            <Plus size={16} />
+            Add task
+          </button>
+        </form>
+        <form className="form-grid compact" onSubmit={(event) => void props.onCreateProject(event)}>
+          <input name="name" placeholder="New project name" required />
+          <input name="description" placeholder="Short description" />
+          <button type="submit">
+            <Plus size={16} />
+            Add project
+          </button>
+        </form>
+      </aside>
+
+      <section className="panel comment-panel">
+        <PanelTitle icon={<MessageSquare size={18} />} title="Comments" meta={props.selectedTask?.title ?? "No task"} />
+        <div className="comment-list">
+          {props.comments.length ? (
+            props.comments.map((comment) => (
+              <article key={comment.id} className="comment">
+                <strong>{comment.author_name || "Unknown"}</strong>
+                <small>{formatDate(comment.created_at)}</small>
+                <p>{comment.body}</p>
+              </article>
+            ))
+          ) : (
+            <p className="empty">Select a task and add the first note.</p>
+          )}
+        </div>
+        <form className="inline-form" onSubmit={(event) => void props.onCreateComment(event)}>
+          <input name="body" placeholder="Write a comment" required />
+          <button type="submit">
+            <Send size={16} />
+          </button>
+        </form>
+      </section>
+    </section>
+  );
+}
+
+function Plan(props: {
+  tasks: Task[];
+  dependencies: TaskDependency[];
+  onCreateDependency(event: FormEvent<HTMLFormElement>): Promise<void>;
+}) {
+  const bounds = timelineBounds(props.tasks);
+
+  return (
+    <section className="split-view">
+      <section className="panel">
+        <PanelTitle
+          icon={<GitBranch size={18} />}
+          title="Timeline"
+          meta={`${props.dependencies.length} dependencies`}
+        />
+        <div className="timeline">
+          {props.tasks.map((task) => {
+            const position = timelinePosition(task, bounds);
+            return (
+              <div key={task.id} className="timeline-row">
+                <span>{task.title}</span>
+                <div className="timeline-track">
+                  <i style={{ left: `${position.left}%`, width: `${position.width}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <aside className="panel">
+        <PanelTitle icon={<Link2 size={18} />} title="Dependencies" meta="planning links" />
+        <form className="form-grid" onSubmit={(event) => void props.onCreateDependency(event)}>
+          <select name="task_id">
+            {props.tasks.map((task) => (
+              <option key={task.id} value={task.id}>
+                {task.title}
+              </option>
+            ))}
+          </select>
+          <select name="depends_on_task_id">
+            {props.tasks.map((task) => (
+              <option key={task.id} value={task.id}>
+                {task.title}
+              </option>
+            ))}
+          </select>
+          <button type="submit">
+            <Link2 size={16} />
+            Link tasks
+          </button>
+        </form>
+        <div className="dependency-list">
+          {props.dependencies.map((dependency) => (
+            <article key={`${dependency.task_id}-${dependency.depends_on_task_id}`}>
+              <small>before</small>
+              <strong>{dependency.task_title || dependency.task_id}</strong>
+              <small>needs</small>
+              <strong>{dependency.depends_on_title || dependency.depends_on_task_id}</strong>
+            </article>
+          ))}
+        </div>
+      </aside>
+    </section>
+  );
+}
+
+function Wiki(props: {
+  pages: WikiPage[];
+  selectedPage: WikiPage | null;
+  revisions: WikiRevision[];
+  onSelectPage(id: string): void;
+  onSaveWiki(event: FormEvent<HTMLFormElement>): Promise<void>;
+}) {
+  return (
+    <section className="wiki-layout">
+      <aside className="panel wiki-index">
+        <PanelTitle icon={<BookOpenText size={18} />} title="Pages" meta={`${props.pages.length} pages`} />
+        {props.pages.map((page) => (
+          <button
+            key={page.id}
+            type="button"
+            className={page.id === props.selectedPage?.id ? "active" : ""}
+            onClick={() => props.onSelectPage(page.id)}
+          >
+            <strong>{page.title}</strong>
+            <span>/{page.slug}</span>
+          </button>
+        ))}
+      </aside>
+
+      <section className="panel wiki-editor">
+        <PanelTitle icon={<Save size={18} />} title="Editor" meta={`${props.revisions.length} revisions`} />
+        <form className="wiki-form" onSubmit={(event) => void props.onSaveWiki(event)}>
+          <input name="title" placeholder="Page title" defaultValue={props.selectedPage?.title ?? ""} required />
+          <input name="slug" placeholder="slug" defaultValue={props.selectedPage?.slug ?? ""} />
+          <textarea
+            name="body_markdown"
+            placeholder="Markdown body"
+            defaultValue={props.selectedPage?.body_markdown ?? ""}
+          />
+          <button type="submit">
+            <Save size={16} />
+            Save page
+          </button>
+        </form>
+      </section>
+
+      <aside className="panel">
+        <PanelTitle icon={<BookOpenText size={18} />} title="Revisions" meta="history" />
+        <div className="event-list">
+          {props.revisions.map((revision) => (
+            <article key={revision.id}>
+              <strong>{revision.author_name || "Unknown"}</strong>
+              <small>{formatDate(revision.created_at)}</small>
+            </article>
+          ))}
+        </div>
+      </aside>
+    </section>
+  );
+}
+
+function Integrations(props: {
+  project: Project;
+  workspace: Workspace;
+  githubRepos: GitHubRepository[];
+  githubEvents: GitHubEvent[];
+  webhookEndpoints: WebhookEndpoint[];
+  notificationChannels: NotificationChannel[];
+  notifications: Notification[];
+  onCreateGitHubRepository(event: FormEvent<HTMLFormElement>): Promise<void>;
+  onCreateWebhookEndpoint(event: FormEvent<HTMLFormElement>): Promise<void>;
+  onCreateNotificationChannel(event: FormEvent<HTMLFormElement>): Promise<void>;
+}) {
+  const linkedRepos = props.githubRepos.filter((repo) => repo.project_id === props.project.id);
+
+  return (
+    <section className="integrations-grid">
+      <section className="panel">
+        <PanelTitle icon={<GitPullRequest size={18} />} title="GitHub" meta={`${props.githubEvents.length} events`} />
+        <form className="form-grid" onSubmit={(event) => void props.onCreateGitHubRepository(event)}>
+          <div className="two-col">
+            <input name="owner" placeholder="owner" required />
+            <input name="name" placeholder="repo" required />
+          </div>
+          <input name="repository_url" placeholder="https://github.com/owner/repo" required />
+          <button type="submit">
+            <GitPullRequest size={16} />
+            Link repository
+          </button>
+        </form>
+        <div className="event-list">
+          {linkedRepos.map((repo) => (
+            <article key={repo.id}>
+              <strong>
+                {repo.owner}/{repo.name}
+              </strong>
+              <small>{repo.repository_url}</small>
+            </article>
+          ))}
+          {props.githubEvents.map((event) => (
+            <article key={event.id}>
+              <strong>{event.event_type}</strong>
+              <small>
+                {event.status} / {formatDate(event.created_at)}
+              </small>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel">
+        <PanelTitle
+          icon={<RadioTower size={18} />}
+          title="Generic Webhooks"
+          meta={`${props.webhookEndpoints.length} endpoints`}
+        />
+        <form className="form-grid" onSubmit={(event) => void props.onCreateWebhookEndpoint(event)}>
+          <input name="name" placeholder="Endpoint name" required />
+          <div className="two-col">
+            <input name="source" placeholder="source" />
+            <select name="default_priority" defaultValue="medium">
+              {priorities.map((priority) => (
+                <option key={priority} value={priority}>
+                  {priority}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="submit">
+            <RadioTower size={16} />
+            Create endpoint
+          </button>
+        </form>
+        <div className="event-list">
+          {props.webhookEndpoints.map((endpoint) => (
+            <article key={endpoint.id}>
+              <strong>{endpoint.name}</strong>
+              <small>
+                {location.origin}/api/webhooks/generic/{endpoint.id}
+              </small>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="panel">
+        <PanelTitle
+          icon={<Bell size={18} />}
+          title="Notifications"
+          meta={`${props.notifications.filter((item) => !item.read_at).length} unread`}
+        />
+        <form className="form-grid" onSubmit={(event) => void props.onCreateNotificationChannel(event)}>
+          <input name="name" placeholder="Channel name" required />
+          <div className="two-col">
+            <select name="channel_type" defaultValue="webhook">
+              <option value="webhook">webhook</option>
+              <option value="slack">slack</option>
+              <option value="lark">lark</option>
+            </select>
+            <input name="target_url" placeholder="target URL" required />
+          </div>
+          <button type="submit">
+            <Bell size={16} />
+            Add channel
+          </button>
+        </form>
+        <div className="event-list">
+          {props.notificationChannels.map((channel) => (
+            <article key={channel.id}>
+              <strong>{channel.name}</strong>
+              <small>
+                {channel.channel_type} / {channel.target_url}
+              </small>
+            </article>
+          ))}
+          {props.notifications.map((notification) => (
+            <article key={notification.id}>
+              <strong>{notification.title}</strong>
+              <small>
+                {notification.source} / {formatDate(notification.created_at)}
+              </small>
+              <p>{notification.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+    </section>
+  );
+}
+
+function Metric(props: { label: string; value: number; tone?: "hot" }) {
+  return (
+    <article className={props.tone === "hot" ? "metric hot" : "metric"}>
+      <strong>{props.value}</strong>
+      <span>{props.label}</span>
+    </article>
+  );
+}
+
+function PanelTitle(props: { icon: React.ReactNode; title: string; meta: string }) {
+  return (
+    <header className="panel-title">
+      <div>
+        {props.icon}
+        <strong>{props.title}</strong>
+      </div>
+      <small>{props.meta}</small>
+    </header>
+  );
+}
+
+function Progress(props: { value: number }) {
+  return (
+    <div className="progress-cell">
+      <span>{props.value}%</span>
+      <i>
+        <b style={{ width: `${props.value}%` }} />
+      </i>
+    </div>
+  );
+}
+
+function tabIcon(tab: Tab) {
+  if (tab === "overview") return <LayoutDashboard size={17} />;
+  if (tab === "plan") return <GitBranch size={17} />;
+  if (tab === "wiki") return <BookOpenText size={17} />;
+  return <RadioTower size={17} />;
+}
+
+function tabLabel(tab: Tab) {
+  if (tab === "overview") return "Overview";
+  if (tab === "plan") return "Plan";
+  if (tab === "wiki") return "Wiki";
+  return "Integrations";
+}
+
+function timelineBounds(tasks: Task[]) {
+  const dates = tasks
+    .flatMap((task) => [task.starts_on, task.due_on].filter(Boolean))
+    .map((date) => new Date(String(date)).getTime());
+  const min = dates.length ? Math.min(...dates) : Date.now();
+  const max = dates.length ? Math.max(...dates) : Date.now() + 86_400_000;
+  return { min, span: Math.max(1, max - min) };
+}
+
+function timelinePosition(task: Task, bounds: { min: number; span: number }) {
+  const start = task.starts_on ? new Date(task.starts_on).getTime() : bounds.min;
+  const end = task.due_on ? new Date(task.due_on).getTime() : start + 86_400_000;
+  const left = Math.max(0, ((start - bounds.min) / bounds.span) * 100);
+  const width = Math.max(5, ((end - start) / bounds.span) * 100);
+  return { left, width };
+}
+
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(
+    new Date(value),
+  );
+}

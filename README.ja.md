@@ -98,7 +98,13 @@ pnpm db:migrate:local
 pnpm dev
 ```
 
-Wrangler が表示するローカルURLを開くと、ProjectFlareの初期画面を確認できます。
+`pnpm dev` は Vite で React app を build してから Wrangler を起動します。Wrangler が表示するローカルURLを開くと、ProjectFlareの初期画面を確認できます。
+
+UI だけを素早く確認したい場合は Vite dev server を起動できます。
+
+```sh
+pnpm dev:ui
+```
 
 ## コミットメッセージ
 

@@ -64,7 +64,10 @@ export default {
     const path = url.pathname;
 
     try {
-      if (path === "/") return htmlResponse(renderApp());
+      if (!path.startsWith("/api/")) {
+        if (env.ASSETS) return env.ASSETS.fetch(request);
+        if (path === "/") return htmlResponse(renderApp());
+      }
       if (path === "/api/health") return json({ ok: true, service: "projectflare" });
       if (path === "/api/me") return json(await getOrCreateUser(request, env));
       if (path === "/api/workspaces") {

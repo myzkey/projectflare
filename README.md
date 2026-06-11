@@ -97,7 +97,13 @@ pnpm db:migrate:local
 pnpm dev
 ```
 
-Then open the URL printed by Wrangler.
+`pnpm dev` builds the React app with Vite, then starts Wrangler. Open the URL printed by Wrangler.
+
+For UI-only iteration, run the Vite dev server:
+
+```sh
+pnpm dev:ui
+```
 
 ## Commit Messages
 

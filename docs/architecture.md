@@ -12,7 +12,8 @@ src/
   ports/                           # interfaces for persistence, queue, notification
   infrastructure/cloudflare/       # Cloudflare bindings and environment types
   presentation/http/               # Worker HTTP/queue adapter
-  presentation/ui/                 # HTML UI rendering target
+  presentation/ui/                 # fallback HTML rendering target
+frontend/                          # Vite + React client app
 ```
 
 ## Dependency Direction
@@ -24,6 +25,8 @@ infrastructure -> ports
 ```
 
 Domain and application code must not depend on `Request`, `Response`, D1, R2, Queues, Wrangler, or Cloudflare-specific bindings.
+
+The React client is built by Vite into `dist/client` and served through the Worker assets binding. API routes remain under `/api/*`.
 
 ## Extracted Slices
 
