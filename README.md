@@ -11,10 +11,83 @@ ProjectFlare is a lightweight project OS designed to run on Cloudflare Workers, 
 - Cloudflare Worker serving both API and the first app screen
 - D1 schema for workspaces, projects, tasks, comments, wiki, webhooks, GitHub integration records, attachments, and audit logs
 - Cloudflare Access-aware user bootstrap from request headers
-- Task list, status summary, and simple gantt timeline
-- Wiki page listing
+- Workspace and project creation
+- Task creation, status/priority/progress updates, status summary, and simple gantt timeline
+- Task dependency capture for gantt planning
+- Task comments
+- Markdown wiki page listing, editing, preview, and revision history
+- GitHub repository linking, webhook intake, issue/comment/PR sync, and queue processing
+- Tokenized generic webhook endpoints, app notifications, and outgoing Slack/Lark/webhook notification channels
 - Generic webhook endpoint that can create tasks from JSON
 - Queue producer hook for webhook/GitHub-style async processing
+
+## Phase 1 API
+
+- `GET /api/me`
+- `GET /api/workspaces`
+- `POST /api/workspaces`
+- `GET /api/workspaces/:workspaceId/projects`
+- `POST /api/workspaces/:workspaceId/projects`
+- `GET /api/projects/:projectId`
+- `PATCH /api/projects/:projectId`
+- `GET /api/projects/:projectId/tasks`
+- `POST /api/projects/:projectId/tasks`
+- `GET /api/projects/:projectId/dependencies`
+- `GET /api/projects/:projectId/wiki`
+- `POST /api/projects/:projectId/wiki`
+- `PATCH /api/tasks/:taskId`
+- `GET /api/tasks/:taskId/dependencies`
+- `POST /api/tasks/:taskId/dependencies`
+- `GET /api/tasks/:taskId/comments`
+- `POST /api/tasks/:taskId/comments`
+- `GET /api/wiki/:pageId`
+- `PATCH /api/wiki/:pageId`
+- `GET /api/wiki/:pageId/revisions`
+- `GET /api/workspaces/:workspaceId/github/repositories`
+- `POST /api/workspaces/:workspaceId/github/repositories`
+- `GET /api/projects/:projectId/github/events`
+- `POST /api/github/webhook`
+- `GET /api/projects/:projectId/webhook-endpoints`
+- `POST /api/projects/:projectId/webhook-endpoints`
+- `GET /api/projects/:projectId/notification-channels`
+- `POST /api/projects/:projectId/notification-channels`
+- `GET /api/projects/:projectId/notifications`
+- `PATCH /api/notifications/:notificationId`
+
+## Phase 2 Surface
+
+- Add task dependencies and show them in the gantt area
+- Create and edit Markdown wiki pages
+- Preview Markdown while editing
+- Store a wiki revision every time a page is created or updated
+- List wiki revisions for the selected page
+
+## Phase 3 Surface
+
+- Link a GitHub repository to a ProjectFlare project
+- Receive GitHub webhooks at `/api/github/webhook`
+- Verify `X-Hub-Signature-256` when `GITHUB_WEBHOOK_SECRET` is configured
+- Queue GitHub webhook processing through Cloudflare Queues
+- Sync GitHub issues into tasks
+- Sync GitHub issue comments into task comments
+- Update linked tasks from pull request events when the PR body contains GitHub issue URLs
+
+For local development, the GitHub webhook secret is optional. In production, set `GITHUB_WEBHOOK_SECRET` as a Worker secret:
+
+```sh
+wrangler secret put GITHUB_WEBHOOK_SECRET
+```
+
+## Phase 4 Surface
+
+- Create tokenized generic webhook endpoints per project
+- Accept `Authorization: Bearer <token>` or `X-ProjectFlare-Token`
+- Apply simple endpoint mapping for `source` and default priority
+- Store app notifications for webhook tasks, comments, GitHub issue/comment/PR events
+- Add outgoing notification channels for generic webhook, Slack, or Lark-compatible URLs
+- Send a compact JSON notification payload to configured channels
+
+Generic webhook endpoints created in the UI return the token once. Store it in the external system that will send tasks into ProjectFlare.
 
 ## Local Setup
 
