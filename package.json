@@ -9,11 +9,17 @@
     "deploy": "wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply projectflare --local",
     "db:migrate": "wrangler d1 migrations apply projectflare --remote",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "test": "vitest run",
+    "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.16",
     "@cloudflare/workers-types": "4.20260610.1",
     "typescript": "5.9.3",
+    "vitest": "4.1.8",
     "wrangler": "4.99.0"
   }
 }

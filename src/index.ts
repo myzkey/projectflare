@@ -189,7 +189,7 @@ type Notification = {
 
 const jsonHeaders = {
   "content-type": "application/json; charset=utf-8",
-  "cache-control": "no-store"
+  "cache-control": "no-store",
 };
 
 const statusLabels: Record<TaskStatus, string> = {
@@ -197,7 +197,7 @@ const statusLabels: Record<TaskStatus, string> = {
   in_progress: "In Progress",
   review: "Review",
   done: "Done",
-  archived: "Archived"
+  archived: "Archived",
 };
 
 export default {
@@ -311,12 +311,12 @@ export default {
         await notifyProject(env, message.body.projectId, {
           title: "Webhook task created",
           body: `A ${message.body.source || "generic"} webhook created a task.`,
-          source: "generic_webhook"
+          source: "generic_webhook",
         });
       }
       message.ack();
     }
-  }
+  },
 };
 
 async function getOrCreateUser(request: Request, env: Env): Promise<AccessUser> {
@@ -331,14 +331,14 @@ async function getOrCreateUser(request: Request, env: Env): Promise<AccessUser> 
   await env.DB.prepare(
     `INSERT INTO users (id, email, name, access_group, updated_at)
      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-     ON CONFLICT(email) DO UPDATE SET name = excluded.name, access_group = excluded.access_group, updated_at = CURRENT_TIMESTAMP`
+     ON CONFLICT(email) DO UPDATE SET name = excluded.name, access_group = excluded.access_group, updated_at = CURRENT_TIMESTAMP`,
   )
     .bind(id, email, name, group)
     .run();
 
   await env.DB.prepare(
     `INSERT OR IGNORE INTO workspace_members (workspace_id, user_id, role)
-     VALUES ('ws_demo', ?, 'owner')`
+     VALUES ('ws_demo', ?, 'owner')`,
   )
     .bind(id)
     .run();
@@ -352,7 +352,7 @@ async function listWorkspaces(env: Env) {
   const { results } = await env.DB.prepare(
     `SELECT *
      FROM workspaces
-     ORDER BY created_at DESC`
+     ORDER BY created_at DESC`,
   ).all<Workspace>();
 
   return results.length ? results : demoWorkspaces();
@@ -367,7 +367,7 @@ async function createWorkspace(request: Request, env: Env) {
     name,
     slug: slugify(body.slug || name),
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
 
   if (!env.DB) return workspace;
@@ -375,12 +375,12 @@ async function createWorkspace(request: Request, env: Env) {
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO workspaces (id, name, slug)
-       VALUES (?, ?, ?)`
+       VALUES (?, ?, ?)`,
     ).bind(workspace.id, workspace.name, workspace.slug),
     env.DB.prepare(
       `INSERT INTO workspace_members (workspace_id, user_id, role)
-       VALUES (?, ?, 'owner')`
-    ).bind(workspace.id, user.id)
+       VALUES (?, ?, 'owner')`,
+    ).bind(workspace.id, user.id),
   ]);
 
   return workspace;
@@ -416,7 +416,7 @@ async function getProject(env: Env, projectId: string) {
     `SELECT p.*, w.name AS workspace_name
      FROM projects p
      JOIN workspaces w ON w.id = p.workspace_id
-     WHERE p.id = ?`
+     WHERE p.id = ?`,
   )
     .bind(projectId)
     .first<Project>();
@@ -435,7 +435,7 @@ async function createProject(request: Request, env: Env, workspaceId: string) {
     due_on: body.due_on || null,
     github_repository_url: body.github_repository_url || null,
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
 
   if (!env.DB) return project;
@@ -443,7 +443,7 @@ async function createProject(request: Request, env: Env, workspaceId: string) {
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO projects (id, workspace_id, name, description, status, starts_on, due_on, github_repository_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
       project.id,
       project.workspace_id,
@@ -452,12 +452,12 @@ async function createProject(request: Request, env: Env, workspaceId: string) {
       project.status,
       project.starts_on,
       project.due_on,
-      project.github_repository_url
+      project.github_repository_url,
     ),
     env.DB.prepare(
       `INSERT INTO project_members (project_id, user_id, role)
-       VALUES (?, ?, 'owner')`
-    ).bind(project.id, user.id)
+       VALUES (?, ?, 'owner')`,
+    ).bind(project.id, user.id),
   ]);
 
   return project;
@@ -474,7 +474,7 @@ async function updateProject(request: Request, env: Env, projectId: string) {
   await env.DB.prepare(
     `UPDATE projects
      SET name = ?, description = ?, status = ?, starts_on = ?, due_on = ?, github_repository_url = ?, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`
+     WHERE id = ?`,
   )
     .bind(
       body.name?.trim() || existing.name,
@@ -483,7 +483,7 @@ async function updateProject(request: Request, env: Env, projectId: string) {
       body.starts_on ?? existing.starts_on,
       body.due_on ?? existing.due_on,
       body.github_repository_url ?? existing.github_repository_url,
-      projectId
+      projectId,
     )
     .run();
 
@@ -498,7 +498,7 @@ async function listGitHubRepositories(env: Env, workspaceId: string) {
      FROM github_repositories r
      JOIN github_integrations i ON i.id = r.github_integration_id
      WHERE i.workspace_id = ?
-     ORDER BY r.updated_at DESC`
+     ORDER BY r.updated_at DESC`,
   )
     .bind(workspaceId)
     .all<GitHubRepository>();
@@ -520,7 +520,7 @@ async function createGitHubRepository(request: Request, env: Env, workspaceId: s
     name,
     repository_url: body.repository_url || `https://github.com/${owner}/${name}`,
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
 
   if (!env.DB) return repository;
@@ -534,16 +534,23 @@ async function createGitHubRepository(request: Request, env: Env, workspaceId: s
      ON CONFLICT(github_integration_id, owner, name) DO UPDATE SET
        project_id = excluded.project_id,
        repository_url = excluded.repository_url,
-       updated_at = CURRENT_TIMESTAMP`
+       updated_at = CURRENT_TIMESTAMP`,
   )
-    .bind(repository.id, integrationId, repository.project_id, repository.owner, repository.name, repository.repository_url)
+    .bind(
+      repository.id,
+      integrationId,
+      repository.project_id,
+      repository.owner,
+      repository.name,
+      repository.repository_url,
+    )
     .run();
 
   if (repository.project_id) {
     await env.DB.prepare(
       `UPDATE projects
        SET github_repository_url = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
+       WHERE id = ?`,
     )
       .bind(repository.repository_url, repository.project_id)
       .run();
@@ -561,9 +568,7 @@ async function ensureGitHubIntegration(env: Env, workspaceId: string): Promise<s
   if (existing) return existing.id;
 
   const id = crypto.randomUUID();
-  await env.DB.prepare("INSERT INTO github_integrations (id, workspace_id) VALUES (?, ?)")
-    .bind(id, workspaceId)
-    .run();
+  await env.DB.prepare("INSERT INTO github_integrations (id, workspace_id) VALUES (?, ?)").bind(id, workspaceId).run();
   return id;
 }
 
@@ -575,7 +580,7 @@ async function listGitHubEvents(env: Env, projectId: string) {
      FROM webhook_events
      WHERE source = 'github' AND project_id = ?
      ORDER BY created_at DESC
-     LIMIT 20`
+     LIMIT 20`,
   )
     .bind(projectId)
     .all();
@@ -590,7 +595,7 @@ async function listWebhookEndpoints(env: Env, projectId: string) {
     `SELECT id, project_id, name, secret_hash, mapping_json, enabled, created_at, updated_at
      FROM webhook_endpoints
      WHERE project_id = ?
-     ORDER BY created_at DESC`
+     ORDER BY created_at DESC`,
   )
     .bind(projectId)
     .all<WebhookEndpoint>();
@@ -604,7 +609,7 @@ async function createWebhookEndpoint(request: Request, env: Env, projectId: stri
   const tokenHash = await sha256Hex(token);
   const mapping = {
     source: body.source || "generic_webhook",
-    defaultPriority: normalizePriority(body.default_priority)
+    defaultPriority: normalizePriority(body.default_priority),
   };
   const endpoint: WebhookEndpoint & { token?: string; endpoint_url?: string } = {
     id: crypto.randomUUID(),
@@ -615,7 +620,7 @@ async function createWebhookEndpoint(request: Request, env: Env, projectId: stri
     enabled: 1,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-    token
+    token,
   };
 
   endpoint.endpoint_url = new URL(`/api/webhooks/generic/${endpoint.id}`, request.url).toString();
@@ -624,7 +629,7 @@ async function createWebhookEndpoint(request: Request, env: Env, projectId: stri
 
   await env.DB.prepare(
     `INSERT INTO webhook_endpoints (id, project_id, name, secret_hash, mapping_json, enabled)
-     VALUES (?, ?, ?, ?, ?, 1)`
+     VALUES (?, ?, ?, ?, ?, 1)`,
   )
     .bind(endpoint.id, projectId, endpoint.name, tokenHash, endpoint.mapping_json)
     .run();
@@ -639,7 +644,7 @@ async function listNotificationChannels(env: Env, projectId: string) {
     `SELECT *
      FROM notification_channels
      WHERE project_id = ?
-     ORDER BY created_at DESC`
+     ORDER BY created_at DESC`,
   )
     .bind(projectId)
     .all<NotificationChannel>();
@@ -658,7 +663,7 @@ async function createNotificationChannel(request: Request, env: Env, projectId: 
     target_url: body.target_url?.trim() || "",
     enabled: 1,
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
 
   if (!channel.target_url) return jsonError("notification_target_url_required", 400);
@@ -666,7 +671,7 @@ async function createNotificationChannel(request: Request, env: Env, projectId: 
 
   await env.DB.prepare(
     `INSERT INTO notification_channels (id, project_id, name, channel_type, target_url, enabled)
-     VALUES (?, ?, ?, ?, ?, 1)`
+     VALUES (?, ?, ?, ?, ?, 1)`,
   )
     .bind(channel.id, projectId, channel.name, channel.channel_type, channel.target_url)
     .run();
@@ -682,7 +687,7 @@ async function listNotifications(env: Env, projectId: string) {
      FROM notifications
      WHERE project_id = ?
      ORDER BY created_at DESC
-     LIMIT 30`
+     LIMIT 30`,
   )
     .bind(projectId)
     .all<Notification>();
@@ -696,7 +701,7 @@ async function markNotificationRead(env: Env, notificationId: string) {
   await env.DB.prepare(
     `UPDATE notifications
      SET read_at = CURRENT_TIMESTAMP
-     WHERE id = ?`
+     WHERE id = ?`,
   )
     .bind(notificationId)
     .run();
@@ -719,7 +724,7 @@ async function listTasks(env: Env, projectId: string) {
          WHEN 'done' THEN 4
          ELSE 5
        END,
-       COALESCE(due_on, '9999-12-31') ASC`
+       COALESCE(due_on, '9999-12-31') ASC`,
   )
     .bind(projectId)
     .all<Task>();
@@ -734,7 +739,7 @@ async function listWikiPages(env: Env, projectId: string) {
     `SELECT id, project_id, parent_page_id, title, slug, body_markdown, created_by_user_id, updated_by_user_id, created_at, updated_at
      FROM wiki_pages
      WHERE project_id = ?
-     ORDER BY updated_at DESC`
+     ORDER BY updated_at DESC`,
   )
     .bind(projectId)
     .all<WikiPage>();
@@ -748,7 +753,7 @@ async function getWikiPage(env: Env, pageId: string) {
   return env.DB.prepare(
     `SELECT id, project_id, parent_page_id, title, slug, body_markdown, created_by_user_id, updated_by_user_id, created_at, updated_at
      FROM wiki_pages
-     WHERE id = ?`
+     WHERE id = ?`,
   )
     .bind(pageId)
     .first<WikiPage>();
@@ -768,7 +773,7 @@ async function createWikiPage(request: Request, env: Env, projectId: string) {
     created_by_user_id: user.id,
     updated_by_user_id: user.id,
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
 
   if (!env.DB) return page;
@@ -779,21 +784,12 @@ async function createWikiPage(request: Request, env: Env, projectId: string) {
       `INSERT INTO wiki_pages (
          id, project_id, parent_page_id, title, slug, body_markdown, created_by_user_id, updated_by_user_id
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      page.id,
-      page.project_id,
-      page.parent_page_id,
-      page.title,
-      page.slug,
-      page.body_markdown,
-      user.id,
-      user.id
-    ),
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(page.id, page.project_id, page.parent_page_id, page.title, page.slug, page.body_markdown, user.id, user.id),
     env.DB.prepare(
       `INSERT INTO wiki_revisions (id, wiki_page_id, body_markdown, author_user_id)
-       VALUES (?, ?, ?, ?)`
-    ).bind(revisionId, page.id, page.body_markdown, user.id)
+       VALUES (?, ?, ?, ?)`,
+    ).bind(revisionId, page.id, page.body_markdown, user.id),
   ]);
 
   return page;
@@ -817,12 +813,12 @@ async function updateWikiPage(request: Request, env: Env, pageId: string) {
     env.DB.prepare(
       `UPDATE wiki_pages
        SET title = ?, slug = ?, body_markdown = ?, parent_page_id = ?, updated_by_user_id = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
+       WHERE id = ?`,
     ).bind(title, slug, markdown, body.parent_page_id ?? existing.parent_page_id, user.id, pageId),
     env.DB.prepare(
       `INSERT INTO wiki_revisions (id, wiki_page_id, body_markdown, author_user_id)
-       VALUES (?, ?, ?, ?)`
-    ).bind(revisionId, pageId, markdown, user.id)
+       VALUES (?, ?, ?, ?)`,
+    ).bind(revisionId, pageId, markdown, user.id),
   ]);
 
   return getWikiPage(env, pageId);
@@ -836,7 +832,7 @@ async function listWikiRevisions(env: Env, pageId: string) {
      FROM wiki_revisions r
      LEFT JOIN users u ON u.id = r.author_user_id
      WHERE r.wiki_page_id = ?
-     ORDER BY r.created_at DESC`
+     ORDER BY r.created_at DESC`,
   )
     .bind(pageId)
     .all<WikiRevision>();
@@ -855,7 +851,7 @@ async function createTask(request: Request, env: Env, projectId: string) {
        id, project_id, title, description, status, priority, starts_on, due_on,
        progress, source, external_url, github_issue_url, backlog_issue_url
      )
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
       task.id,
@@ -870,7 +866,7 @@ async function createTask(request: Request, env: Env, projectId: string) {
       task.source,
       task.external_url,
       task.github_issue_url,
-      task.backlog_issue_url
+      task.backlog_issue_url,
     )
     .run();
 
@@ -891,7 +887,7 @@ async function updateTask(request: Request, env: Env, taskId: string) {
   await env.DB.prepare(
     `UPDATE tasks
      SET title = ?, description = ?, status = ?, priority = ?, starts_on = ?, due_on = ?, progress = ?, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`
+     WHERE id = ?`,
   )
     .bind(
       body.title?.trim() || existing.title,
@@ -901,7 +897,7 @@ async function updateTask(request: Request, env: Env, taskId: string) {
       body.starts_on ?? existing.starts_on,
       body.due_on ?? existing.due_on,
       progress ?? existing.progress,
-      taskId
+      taskId,
     )
     .run();
 
@@ -917,7 +913,7 @@ async function listProjectDependencies(env: Env, projectId: string) {
      JOIN tasks t ON t.id = d.task_id
      JOIN tasks parent ON parent.id = d.depends_on_task_id
      WHERE t.project_id = ?
-     ORDER BY d.created_at DESC`
+     ORDER BY d.created_at DESC`,
   )
     .bind(projectId)
     .all<TaskDependency>();
@@ -934,7 +930,7 @@ async function listTaskDependencies(env: Env, taskId: string) {
      JOIN tasks t ON t.id = d.task_id
      JOIN tasks parent ON parent.id = d.depends_on_task_id
      WHERE d.task_id = ?
-     ORDER BY d.created_at DESC`
+     ORDER BY d.created_at DESC`,
   )
     .bind(taskId)
     .all<TaskDependency>();
@@ -951,14 +947,14 @@ async function createTaskDependency(request: Request, env: Env, taskId: string) 
   const dependency: TaskDependency = {
     task_id: taskId,
     depends_on_task_id: dependsOnTaskId,
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
   };
 
   if (!env.DB) return dependency;
 
   await env.DB.prepare(
     `INSERT OR IGNORE INTO task_dependencies (task_id, depends_on_task_id)
-     VALUES (?, ?)`
+     VALUES (?, ?)`,
   )
     .bind(taskId, dependsOnTaskId)
     .run();
@@ -974,7 +970,7 @@ async function listTaskComments(env: Env, taskId: string) {
      FROM task_comments c
      LEFT JOIN users u ON u.id = c.author_user_id
      WHERE c.task_id = ?
-     ORDER BY c.created_at ASC`
+     ORDER BY c.created_at ASC`,
   )
     .bind(taskId)
     .all<TaskComment>();
@@ -992,7 +988,7 @@ async function createTaskComment(request: Request, env: Env, taskId: string) {
     author_name: user.name,
     body: body.body?.trim() || "",
     created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
 
   if (!comment.body) return jsonError("comment_body_required", 400);
@@ -1000,17 +996,19 @@ async function createTaskComment(request: Request, env: Env, taskId: string) {
 
   await env.DB.prepare(
     `INSERT INTO task_comments (id, task_id, author_user_id, body)
-     VALUES (?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?)`,
   )
     .bind(comment.id, taskId, user.id, comment.body)
     .run();
 
-  const task = await env.DB.prepare("SELECT project_id, title FROM tasks WHERE id = ?").bind(taskId).first<{ project_id: string; title: string }>();
+  const task = await env.DB.prepare("SELECT project_id, title FROM tasks WHERE id = ?")
+    .bind(taskId)
+    .first<{ project_id: string; title: string }>();
   if (task) {
     await notifyProject(env, task.project_id, {
       title: "Task comment added",
       body: `${user.name} commented on ${task.title}.`,
-      source: "app"
+      source: "app",
     });
   }
 
@@ -1030,13 +1028,14 @@ async function handleGitHubWebhook(request: Request, env: Env) {
 
   const payload = JSON.parse(rawBody) as GitHubWebhookPayload;
   const repositoryFullName = payload.repository?.full_name || repositoryFullNameFromPayload(payload);
-  const projectId = env.DB && repositoryFullName ? await findProjectIdForGitHubRepository(env, repositoryFullName) : null;
+  const projectId =
+    env.DB && repositoryFullName ? await findProjectIdForGitHubRepository(env, repositoryFullName) : null;
   const eventId = crypto.randomUUID();
 
   if (env.DB) {
     await env.DB.prepare(
       `INSERT INTO webhook_events (id, project_id, source, event_type, payload_json, status)
-       VALUES (?, ?, 'github', ?, ?, 'queued')`
+       VALUES (?, ?, 'github', ?, ?, 'queued')`,
     )
       .bind(eventId, projectId, `${eventName}.${payload.action || "received"}`, rawBody)
       .run();
@@ -1049,7 +1048,7 @@ async function handleGitHubWebhook(request: Request, env: Env) {
     eventName,
     action: payload.action || null,
     repositoryFullName,
-    payload
+    payload,
   };
 
   if (env.PROJECTFLARE_QUEUE) {
@@ -1064,14 +1063,16 @@ async function handleGitHubWebhook(request: Request, env: Env) {
     queued: Boolean(env.PROJECTFLARE_QUEUE),
     repositoryFullName,
     projectId,
-    signatureVerified: Boolean(env.GITHUB_WEBHOOK_SECRET)
+    signatureVerified: Boolean(env.GITHUB_WEBHOOK_SECRET),
   };
 }
 
 async function processGitHubQueueMessage(env: Env, message: GitHubQueueMessage) {
   if (!env.DB) return;
 
-  const projectId = message.repositoryFullName ? await findProjectIdForGitHubRepository(env, message.repositoryFullName) : null;
+  const projectId = message.repositoryFullName
+    ? await findProjectIdForGitHubRepository(env, message.repositoryFullName)
+    : null;
   if (!projectId) {
     await markWebhookEventProcessed(env, message.eventId, "no_project_match");
     return;
@@ -1104,14 +1105,14 @@ async function syncGitHubIssue(env: Env, projectId: string, payload: GitHubWebho
     await env.DB.prepare(
       `UPDATE tasks
        SET title = ?, description = ?, status = ?, source = 'github', updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
+       WHERE id = ?`,
     )
       .bind(title, description, status, existing.id)
       .run();
     await notifyProject(env, projectId, {
       title: "GitHub issue updated",
       body: title,
-      source: "github"
+      source: "github",
     });
     return;
   }
@@ -1120,7 +1121,7 @@ async function syncGitHubIssue(env: Env, projectId: string, payload: GitHubWebho
     `INSERT INTO tasks (
        id, project_id, title, description, status, priority, progress, source, external_url, github_issue_url
      )
-     VALUES (?, ?, ?, ?, ?, 'medium', ?, 'github', ?, ?)`
+     VALUES (?, ?, ?, ?, ?, 'medium', ?, 'github', ?, ?)`,
   )
     .bind(crypto.randomUUID(), projectId, title, description, status, status === "done" ? 100 : 0, issueUrl, issueUrl)
     .run();
@@ -1128,7 +1129,7 @@ async function syncGitHubIssue(env: Env, projectId: string, payload: GitHubWebho
   await notifyProject(env, projectId, {
     title: "GitHub issue synced",
     body: title,
-    source: "github"
+    source: "github",
   });
 }
 
@@ -1144,17 +1145,19 @@ async function syncGitHubIssueComment(env: Env, payload: GitHubWebhookPayload) {
   const author = payload.comment.user?.login || payload.sender?.login || "github";
   await env.DB.prepare(
     `INSERT INTO task_comments (id, task_id, author_user_id, body)
-     VALUES (?, ?, NULL, ?)`
+     VALUES (?, ?, NULL, ?)`,
   )
     .bind(crypto.randomUUID(), task.id, `[GitHub:${author}] ${payload.comment.body || ""}`)
     .run();
 
-  const project = await env.DB.prepare("SELECT project_id, title FROM tasks WHERE id = ?").bind(task.id).first<{ project_id: string; title: string }>();
+  const project = await env.DB.prepare("SELECT project_id, title FROM tasks WHERE id = ?")
+    .bind(task.id)
+    .first<{ project_id: string; title: string }>();
   if (project) {
     await notifyProject(env, project.project_id, {
       title: "GitHub comment synced",
       body: `${author} commented on ${project.title}.`,
-      source: "github"
+      source: "github",
     });
   }
 }
@@ -1172,17 +1175,19 @@ async function syncGitHubPullRequest(env: Env, payload: GitHubWebhookPayload) {
     await env.DB.prepare(
       `UPDATE tasks
        SET status = ?, progress = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE github_issue_url = ?`
+       WHERE github_issue_url = ?`,
     )
       .bind(status, progress, issueUrl)
       .run();
 
-    const task = await env.DB.prepare("SELECT project_id, title FROM tasks WHERE github_issue_url = ?").bind(issueUrl).first<{ project_id: string; title: string }>();
+    const task = await env.DB.prepare("SELECT project_id, title FROM tasks WHERE github_issue_url = ?")
+      .bind(issueUrl)
+      .first<{ project_id: string; title: string }>();
     if (task) {
       await notifyProject(env, task.project_id, {
         title: "GitHub PR updated linked task",
         body: `${task.title} moved to ${statusLabels[status]}.`,
-        source: "github"
+        source: "github",
       });
     }
   }
@@ -1194,7 +1199,7 @@ async function notifyProject(env: Env, projectId: string, input: { title: string
   const notificationId = crypto.randomUUID();
   await env.DB.prepare(
     `INSERT INTO notifications (id, project_id, title, body, source)
-     VALUES (?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?)`,
   )
     .bind(notificationId, projectId, input.title, input.body, input.source)
     .run();
@@ -1202,7 +1207,7 @@ async function notifyProject(env: Env, projectId: string, input: { title: string
   const { results } = await env.DB.prepare(
     `SELECT *
      FROM notification_channels
-     WHERE project_id = ? AND enabled = 1`
+     WHERE project_id = ? AND enabled = 1`,
   )
     .bind(projectId)
     .all<NotificationChannel>();
@@ -1210,20 +1215,23 @@ async function notifyProject(env: Env, projectId: string, input: { title: string
   await Promise.all(results.map((channel) => sendNotificationChannel(channel, input)));
 }
 
-async function sendNotificationChannel(channel: NotificationChannel, input: { title: string; body: string; source: string }) {
+async function sendNotificationChannel(
+  channel: NotificationChannel,
+  input: { title: string; body: string; source: string },
+) {
   const payload = {
     text: `${input.title}: ${input.body}`,
     title: input.title,
     body: input.body,
     source: input.source,
-    projectflare: true
+    projectflare: true,
   };
 
   try {
     await fetch(channel.target_url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
   } catch (error) {
     console.warn("Notification channel delivery failed", channel.id, error);
@@ -1241,7 +1249,7 @@ async function findProjectIdForGitHubRepository(env: Env, repositoryFullName: st
      FROM github_repositories
      WHERE owner = ? AND name = ?
      ORDER BY updated_at DESC
-     LIMIT 1`
+     LIMIT 1`,
   )
     .bind(owner, name)
     .first<{ project_id: string | null }>();
@@ -1255,7 +1263,7 @@ async function markWebhookEventProcessed(env: Env, eventId: string, status: stri
   await env.DB.prepare(
     `UPDATE webhook_events
      SET status = ?, processed_at = CURRENT_TIMESTAMP
-     WHERE id = ?`
+     WHERE id = ?`,
   )
     .bind(status, eventId)
     .run();
@@ -1280,7 +1288,7 @@ async function handleGenericWebhook(request: Request, env: Env, projectId: strin
     priority: normalizePriority(stringFrom(payload.priority) || mapping.defaultPriority),
     due_on: stringFrom(payload.dueDate) ?? stringFrom(payload.due_on),
     source: stringFrom(payload.source) ?? mapping.source,
-    external_url: stringFrom(payload.externalUrl) ?? stringFrom(payload.external_url)
+    external_url: stringFrom(payload.externalUrl) ?? stringFrom(payload.external_url),
   });
 
   if (env.DB) {
@@ -1288,14 +1296,14 @@ async function handleGenericWebhook(request: Request, env: Env, projectId: strin
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO webhook_events (id, project_id, source, event_type, payload_json)
-         VALUES (?, ?, ?, 'generic.task.create', ?)`
+         VALUES (?, ?, ?, 'generic.task.create', ?)`,
       ).bind(eventId, projectId, task.source, JSON.stringify({ endpointId: endpoint?.id || null, payload })),
       env.DB.prepare(
         `INSERT INTO tasks (
            id, project_id, title, description, status, priority, starts_on, due_on,
            progress, source, external_url, github_issue_url, backlog_issue_url
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         task.id,
         task.project_id,
@@ -1309,8 +1317,8 @@ async function handleGenericWebhook(request: Request, env: Env, projectId: strin
         task.source,
         task.external_url,
         null,
-        null
-      )
+        null,
+      ),
     ]);
   }
 
@@ -1319,13 +1327,13 @@ async function handleGenericWebhook(request: Request, env: Env, projectId: strin
       type: "generic.task.created",
       projectId,
       taskId: task.id,
-      source: task.source
+      source: task.source,
     });
   } else {
     await notifyProject(env, projectId, {
       title: "Webhook task created",
       body: `${task.title} was created from ${task.source || "generic webhook"}.`,
-      source: "generic_webhook"
+      source: "generic_webhook",
     });
   }
 
@@ -1339,7 +1347,7 @@ async function findWebhookEndpoint(env: Env, endpointOrProjectId: string): Promi
     `SELECT *
      FROM webhook_endpoints
      WHERE id = ?
-     LIMIT 1`
+     LIMIT 1`,
   )
     .bind(endpointOrProjectId)
     .first<WebhookEndpoint>();
@@ -1358,7 +1366,7 @@ function parseWebhookMapping(mappingJson: string | null): { source: string; defa
     const parsed = JSON.parse(mappingJson) as { source?: string; defaultPriority?: string };
     return {
       source: parsed.source || "generic_webhook",
-      defaultPriority: normalizePriority(parsed.defaultPriority)
+      defaultPriority: normalizePriority(parsed.defaultPriority),
     };
   } catch {
     return { source: "generic_webhook", defaultPriority: "medium" };
@@ -1383,7 +1391,7 @@ function normalizeIncomingTask(projectId: string, body: Partial<Task> & { dueDat
     github_issue_url: body.github_issue_url || null,
     backlog_issue_url: body.backlog_issue_url || null,
     created_at: now,
-    updated_at: now
+    updated_at: now,
   };
 }
 
@@ -1406,13 +1414,9 @@ async function verifyGitHubSignature(rawBody: string, signature: string | null, 
   if (!signature?.startsWith("sha256=")) return false;
 
   const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
+  const key = await crypto.subtle.importKey("raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, [
+    "sign",
+  ]);
   const digest = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
   const expected = `sha256=${arrayBufferToHex(digest)}`;
   return timingSafeEqual(expected, signature);
@@ -1456,8 +1460,8 @@ function htmlResponse(markup: string): Response {
   return new Response(markup, {
     headers: {
       "content-type": "text/html; charset=utf-8",
-      "cache-control": "no-store"
-    }
+      "cache-control": "no-store",
+    },
   });
 }
 
@@ -1493,8 +1497,8 @@ function demoWorkspaces(): Workspace[] {
       name: "ProjectFlare Demo",
       slug: "demo",
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
+      updated_at: new Date().toISOString(),
+    },
   ];
 }
 
@@ -1509,8 +1513,8 @@ function demoProjects() {
       status: "active",
       starts_on: "2026-06-01",
       due_on: "2026-07-15",
-      github_repository_url: "https://github.com/example/projectflare"
-    }
+      github_repository_url: "https://github.com/example/projectflare",
+    },
   ];
 }
 
@@ -1533,7 +1537,7 @@ function demoTasks(): Task[] {
       github_issue_url: null,
       backlog_issue_url: null,
       created_at: now,
-      updated_at: now
+      updated_at: now,
     },
     {
       id: "tsk_ui",
@@ -1551,7 +1555,7 @@ function demoTasks(): Task[] {
       github_issue_url: null,
       backlog_issue_url: null,
       created_at: now,
-      updated_at: now
+      updated_at: now,
     },
     {
       id: "tsk_webhooks",
@@ -1569,8 +1573,8 @@ function demoTasks(): Task[] {
       github_issue_url: null,
       backlog_issue_url: null,
       created_at: now,
-      updated_at: now
-    }
+      updated_at: now,
+    },
   ];
 }
 
@@ -1586,8 +1590,8 @@ function demoComments(taskId: string): TaskComment[] {
       author_name: "ProjectFlare",
       body: "Phase 1 should make task updates and comments usable from the first screen.",
       created_at: now,
-      updated_at: now
-    }
+      updated_at: now,
+    },
   ];
 }
 
@@ -1599,15 +1603,15 @@ function demoDependencies(): TaskDependency[] {
       depends_on_task_id: "tsk_schema",
       task_title: "Build project command center",
       depends_on_title: "Design D1 schema",
-      created_at: now
+      created_at: now,
     },
     {
       task_id: "tsk_webhooks",
       depends_on_task_id: "tsk_schema",
       task_title: "Accept generic webhook tasks",
       depends_on_title: "Design D1 schema",
-      created_at: now
-    }
+      created_at: now,
+    },
   ];
 }
 
@@ -1625,8 +1629,8 @@ function demoWikiPages(projectId: string): WikiPage[] {
       created_by_user_id: null,
       updated_by_user_id: null,
       created_at: now,
-      updated_at: now
-    }
+      updated_at: now,
+    },
   ];
 }
 
@@ -1638,8 +1642,8 @@ function demoWikiRevisions(pageId: string): WikiRevision[] {
       body_markdown: "# MVP Scope\n\nInitial demo revision.",
       author_user_id: "usr_demo",
       author_name: "ProjectFlare",
-      created_at: new Date().toISOString()
-    }
+      created_at: new Date().toISOString(),
+    },
   ];
 }
 
@@ -1654,8 +1658,8 @@ function demoGitHubRepositories(workspaceId: string): GitHubRepository[] {
       name: "projectflare",
       repository_url: "https://github.com/example/projectflare",
       created_at: now,
-      updated_at: now
-    }
+      updated_at: now,
+    },
   ].filter(() => workspaceId === "ws_demo");
 }
 
@@ -1672,8 +1676,8 @@ function demoWebhookEndpoints(projectId: string): WebhookEndpoint[] {
       mapping_json: JSON.stringify({ source: "demo", defaultPriority: "medium" }),
       enabled: 1,
       created_at: now,
-      updated_at: now
-    }
+      updated_at: now,
+    },
   ];
 }
 
