@@ -17,7 +17,7 @@ import {
   ShieldCheck,
   Sparkles,
 } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import {
   detectInitialLocale,
@@ -512,6 +512,8 @@ function Overview(props: {
   messages: Messages;
   locale: Locale;
 }) {
+  const visibleTasks = useMemo(() => flattenTasks(props.tasks), [props.tasks]);
+
   return (
     <section className="dashboard-grid">
       <div className="stat-band">
@@ -532,8 +534,12 @@ function Overview(props: {
           meta={props.messages.overview.taskCount(props.tasks.length)}
         />
         <div className="task-table">
-          {props.tasks.map((task) => (
-            <article key={task.id} className={props.selectedTask?.id === task.id ? "task-row selected" : "task-row"}>
+          {visibleTasks.map(({ task, depth }) => (
+            <article
+              key={task.id}
+              className={props.selectedTask?.id === task.id ? "task-row selected" : "task-row"}
+              style={{ "--task-depth": depth } as CSSProperties}
+            >
               <button type="button" className="task-name" onClick={() => props.onSelectTask(task.id)}>
                 <strong>{task.title}</strong>
                 <span>{task.description || props.messages.overview.noDescription}</span>
@@ -575,6 +581,17 @@ function Overview(props: {
         <form className="form-grid" onSubmit={(event) => void props.onCreateTask(event)}>
           <input name="title" placeholder={props.messages.overview.taskTitle} required />
           <textarea name="description" placeholder={props.messages.overview.description} />
+          <select name="parent_task_id" aria-label={props.messages.overview.parentTask} defaultValue="">
+            <option value="">{props.messages.overview.rootTask}</option>
+            {visibleTasks
+              .filter(({ depth }) => depth < 2)
+              .map(({ task, depth }) => (
+                <option key={task.id} value={task.id}>
+                  {"- ".repeat(depth)}
+                  {task.title}
+                </option>
+              ))}
+          </select>
           <div className="two-col">
             <select name="priority" defaultValue="medium">
               {priorities.map((priority) => (
@@ -628,6 +645,33 @@ function Overview(props: {
       </section>
     </section>
   );
+}
+
+function flattenTasks(tasks: Task[]): Array<{ task: Task; depth: number }> {
+  const ordered: Array<{ task: Task; depth: number }> = [];
+  const byParent = new Map<string | null, Task[]>();
+
+  for (const task of tasks) {
+    const siblings = byParent.get(task.parent_task_id) ?? [];
+    siblings.push(task);
+    byParent.set(task.parent_task_id, siblings);
+  }
+
+  const visit = (parentId: string | null, depth: number, seen: Set<string>) => {
+    for (const task of byParent.get(parentId) ?? []) {
+      if (seen.has(task.id)) continue;
+      ordered.push({ task, depth });
+      visit(task.id, depth + 1, new Set([...seen, task.id]));
+    }
+  };
+
+  visit(null, 0, new Set());
+
+  for (const task of tasks) {
+    if (!ordered.some((item) => item.task.id === task.id)) ordered.push({ task, depth: 0 });
+  }
+
+  return ordered;
 }
 
 function Plan(props: {

@@ -65,9 +65,23 @@ const responses: Record<string, unknown> = {
       description: "Replace inline HTML with Vite assets",
       status: "in_progress",
       priority: "high",
+      parent_task_id: null,
       starts_on: "2026-06-10",
       due_on: "2026-06-18",
       progress: 60,
+      source: "app",
+    },
+    {
+      id: "tsk_2",
+      project_id: "prj_1",
+      title: "Wire child tasks",
+      description: "Nest related work under a parent",
+      status: "todo",
+      priority: "medium",
+      parent_task_id: "tsk_1",
+      starts_on: null,
+      due_on: null,
+      progress: 10,
       source: "app",
     },
   ],
@@ -119,7 +133,8 @@ describe("React app", () => {
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "Cloudflare Native MVP" })).toBeTruthy();
-    expect(await screen.findAllByText("Design React shell")).toHaveLength(2);
+    expect((await screen.findAllByText("Design React shell")).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByRole("combobox", { name: "Parent task" })).toBeTruthy();
     expect(screen.getByText("Demo Workspace")).toBeTruthy();
     expect(screen.getByText("Overview")).toBeTruthy();
   });

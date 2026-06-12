@@ -33,6 +33,7 @@ export type Task = {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
+  parent_task_id: string | null;
   starts_on: string | null;
   due_on: string | null;
   progress: number;

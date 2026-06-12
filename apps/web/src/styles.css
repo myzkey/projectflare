@@ -342,6 +342,7 @@ button {
   display: grid;
   gap: 4px;
   color: var(--ink);
+  padding-inline-start: calc(var(--task-depth, 0) * 18px + 2px);
 }
 
 .task-name span {

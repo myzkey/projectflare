@@ -794,6 +794,7 @@ async function createTask(request: Request, env: Env, projectId: string) {
       startsOn: body.starts_on,
       dueOn: body.due_on || body.dueDate,
       progress: body.progress,
+      parentTaskId: body.parent_task_id,
       source: body.source,
       externalUrl: body.external_url,
       githubIssueUrl: body.github_issue_url,
@@ -828,19 +829,18 @@ async function updateTask(request: Request, env: Env, taskId: string) {
 
   if (!env.DB) return { id: taskId, status: allowedStatus, progress };
 
-  return updateTaskUseCase(
-    taskId,
-    {
-      title: body.title,
-      description: body.description,
-      status: body.status,
-      priority: body.priority,
-      startsOn: body.starts_on,
-      dueOn: body.due_on,
-      progress: body.progress,
-    },
-    createTaskUseCasePorts(env),
-  );
+  const patch = {
+    title: body.title,
+    description: body.description,
+    status: body.status,
+    priority: body.priority,
+    startsOn: body.starts_on,
+    dueOn: body.due_on,
+    progress: body.progress,
+    ...(Object.hasOwn(body, "parent_task_id") ? { parentTaskId: body.parent_task_id } : {}),
+  };
+
+  return updateTaskUseCase(taskId, patch, createTaskUseCasePorts(env));
 }
 
 async function listProjectDependencies(env: Env, projectId: string) {
@@ -1171,6 +1171,7 @@ function demoTasks(): Task[] {
       status: "done",
       priority: "high",
       assignee_user_id: null,
+      parent_task_id: null,
       starts_on: "2026-06-01",
       due_on: "2026-06-05",
       progress: 100,
@@ -1189,6 +1190,7 @@ function demoTasks(): Task[] {
       status: "in_progress",
       priority: "high",
       assignee_user_id: null,
+      parent_task_id: "tsk_schema",
       starts_on: "2026-06-04",
       due_on: "2026-06-20",
       progress: 55,
@@ -1207,6 +1209,7 @@ function demoTasks(): Task[] {
       status: "todo",
       priority: "medium",
       assignee_user_id: null,
+      parent_task_id: "tsk_ui",
       starts_on: "2026-06-18",
       due_on: "2026-06-28",
       progress: 10,

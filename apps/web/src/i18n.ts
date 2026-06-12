@@ -50,6 +50,8 @@ export type Messages = {
     createMeta: string;
     taskTitle: string;
     description: string;
+    parentTask: string;
+    rootTask: string;
     addTask: string;
     newProjectName: string;
     shortDescription: string;
@@ -218,6 +220,8 @@ const en: Messages = {
     createMeta: "project / task",
     taskTitle: "Task title",
     description: "Description",
+    parentTask: "Parent task",
+    rootTask: "No parent",
     addTask: "Add task",
     newProjectName: "New project name",
     shortDescription: "Short description",
@@ -896,6 +900,8 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       createMeta: "プロジェクト / タスク",
       taskTitle: "タスク名",
       description: "説明",
+      parentTask: "親タスク",
+      rootTask: "親なし",
       addTask: "タスクを追加",
       newProjectName: "新しいプロジェクト名",
       shortDescription: "短い説明",

@@ -18,6 +18,7 @@ export type Task = {
   status: TaskStatus;
   priority: TaskPriority;
   assignee_user_id: string | null;
+  parent_task_id: string | null;
   starts_on: string | null;
   due_on: string | null;
   progress: number;
@@ -41,6 +42,7 @@ export function createTask(input: {
   status?: TaskStatus | null;
   priority?: unknown;
   assigneeUserId?: string | null;
+  parentTaskId?: string | null;
   startsOn?: string | null;
   dueOn?: string | null;
   progress?: number | null;
@@ -58,6 +60,7 @@ export function createTask(input: {
     status: input.status || "todo",
     priority: normalizePriority(input.priority),
     assignee_user_id: input.assigneeUserId || null,
+    parent_task_id: input.parentTaskId || null,
     starts_on: input.startsOn || null,
     due_on: input.dueOn || null,
     progress: clamp(input.progress ?? 0, 0, 100),

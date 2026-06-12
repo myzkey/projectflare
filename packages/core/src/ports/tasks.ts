@@ -10,6 +10,7 @@ export type TaskCreateInput = {
   startsOn?: string | null;
   dueOn?: string | null;
   progress?: number | null;
+  parentTaskId?: string | null;
   source?: string | null;
   externalUrl?: string | null;
   githubIssueUrl?: string | null;
@@ -24,6 +25,7 @@ export type TaskUpdateInput = {
   startsOn?: string | null;
   dueOn?: string | null;
   progress?: number | null;
+  parentTaskId?: string | null;
 };
 
 export type TaskUpdatePatch = {
@@ -34,6 +36,7 @@ export type TaskUpdatePatch = {
   starts_on: string | null;
   due_on: string | null;
   progress: number;
+  parent_task_id: string | null;
 };
 
 export type TaskRepository = {

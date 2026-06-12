@@ -68,6 +68,7 @@ describe("task use cases", () => {
       status: "todo",
       priority: "medium",
       assignee_user_id: null,
+      parent_task_id: null,
       starts_on: null,
       due_on: null,
       progress: 0,
@@ -108,4 +109,98 @@ describe("task use cases", () => {
       new ApplicationError("task_not_found", 404),
     );
   });
+
+  it("creates a child task when the parent belongs to the same project", async () => {
+    const parent = taskFixture({ id: "task_parent", project_id: "project_1" });
+    const { ports, tasks } = createPorts([parent]);
+
+    const task = await createProjectTaskUseCase(
+      {
+        projectId: "project_1",
+        title: "Child task",
+        parentTaskId: "task_parent",
+      },
+      ports,
+    );
+
+    expect(task.parent_task_id).toBe("task_parent");
+    expect(tasks.get("task_new")?.parent_task_id).toBe("task_parent");
+  });
+
+  it("rejects a parent task from another project", async () => {
+    const otherProjectParent = taskFixture({ id: "task_other", project_id: "project_2" });
+    const { ports } = createPorts([otherProjectParent]);
+
+    await expect(
+      createProjectTaskUseCase(
+        {
+          projectId: "project_1",
+          title: "Invalid child",
+          parentTaskId: "task_other",
+        },
+        ports,
+      ),
+    ).rejects.toEqual(new ApplicationError("parent_task_not_found", 404));
+  });
+
+  it("rejects nesting deeper than three levels", async () => {
+    const root = taskFixture({ id: "task_root", project_id: "project_1" });
+    const child = taskFixture({ id: "task_child", project_id: "project_1", parent_task_id: "task_root" });
+    const grandchild = taskFixture({ id: "task_grandchild", project_id: "project_1", parent_task_id: "task_child" });
+    const { ports } = createPorts([root, child, grandchild]);
+
+    await expect(
+      createProjectTaskUseCase(
+        {
+          projectId: "project_1",
+          title: "Too deep",
+          parentTaskId: "task_grandchild",
+        },
+        ports,
+      ),
+    ).rejects.toEqual(new ApplicationError("task_nesting_limit_exceeded", 400));
+  });
+
+  it("rejects moving a task under one of its descendants", async () => {
+    const root = taskFixture({ id: "task_root", project_id: "project_1" });
+    const child = taskFixture({ id: "task_child", project_id: "project_1", parent_task_id: "task_root" });
+    const { ports } = createPorts([root, child]);
+
+    await expect(updateTaskUseCase("task_root", { parentTaskId: "task_child" }, ports)).rejects.toEqual(
+      new ApplicationError("task_parent_cycle", 400),
+    );
+  });
+
+  it("clears a parent task when updated with null", async () => {
+    const root = taskFixture({ id: "task_root", project_id: "project_1" });
+    const child = taskFixture({ id: "task_child", project_id: "project_1", parent_task_id: "task_root" });
+    const { ports } = createPorts([root, child]);
+
+    const updated = await updateTaskUseCase("task_child", { parentTaskId: null }, ports);
+
+    expect(updated.parent_task_id).toBeNull();
+  });
 });
+
+function taskFixture(overrides: Partial<Task> = {}): Task {
+  return {
+    id: "task_1",
+    project_id: "project_1",
+    title: "Task",
+    description: null,
+    status: "todo",
+    priority: "medium",
+    assignee_user_id: null,
+    parent_task_id: null,
+    starts_on: null,
+    due_on: null,
+    progress: 0,
+    source: "app",
+    external_url: null,
+    github_issue_url: null,
+    backlog_issue_url: null,
+    created_at: "2026-06-11T00:00:00.000Z",
+    updated_at: "2026-06-11T00:00:00.000Z",
+    ...overrides,
+  };
+}

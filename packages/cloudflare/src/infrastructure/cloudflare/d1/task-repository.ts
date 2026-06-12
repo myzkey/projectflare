@@ -48,9 +48,9 @@ export function createD1TaskRepository(env: Env): TaskRepository {
       await env.DB.prepare(
         `INSERT INTO tasks (
            id, project_id, title, description, status, priority, starts_on, due_on,
-           progress, source, external_url, github_issue_url, backlog_issue_url
+           progress, parent_task_id, source, external_url, github_issue_url, backlog_issue_url
          )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
         .bind(
           task.id,
@@ -62,6 +62,7 @@ export function createD1TaskRepository(env: Env): TaskRepository {
           task.starts_on,
           task.due_on,
           task.progress,
+          task.parent_task_id,
           task.source,
           task.external_url,
           task.github_issue_url,
@@ -74,7 +75,7 @@ export function createD1TaskRepository(env: Env): TaskRepository {
 
       await env.DB.prepare(
         `UPDATE tasks
-         SET title = ?, description = ?, status = ?, priority = ?, starts_on = ?, due_on = ?, progress = ?, updated_at = CURRENT_TIMESTAMP
+         SET title = ?, description = ?, status = ?, priority = ?, starts_on = ?, due_on = ?, progress = ?, parent_task_id = ?, updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
       )
         .bind(
@@ -85,6 +86,7 @@ export function createD1TaskRepository(env: Env): TaskRepository {
           patch.starts_on,
           patch.due_on,
           patch.progress,
+          patch.parent_task_id,
           id,
         )
         .run();

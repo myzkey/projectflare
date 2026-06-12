@@ -12,14 +12,22 @@ test.beforeEach(async ({ page }) => {
 test("creates a task and adds a comment", async ({ page }) => {
   const stamp = Date.now();
   const taskTitle = `E2E task ${stamp}`;
+  const childTitle = `E2E child ${stamp}`;
   const commentBody = `E2E comment ${stamp}`;
 
   await page.getByPlaceholder("Task title").fill(taskTitle);
   await page.getByPlaceholder("Description", { exact: true }).fill("Created by Playwright");
   await page.getByRole("button", { name: "Add task" }).click();
 
-  await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
-  await page.getByText(taskTitle, { exact: true }).click();
+  const taskRow = page.locator(".task-row").filter({ hasText: taskTitle });
+  await expect(taskRow).toBeVisible();
+
+  await page.getByPlaceholder("Task title").fill(childTitle);
+  await page.getByLabel("Parent task").selectOption({ label: taskTitle });
+  await page.getByRole("button", { name: "Add task" }).click();
+
+  await expect(page.locator(".task-row").filter({ hasText: childTitle })).toBeVisible();
+  await taskRow.getByRole("button", { name: taskTitle }).click();
 
   await page.getByPlaceholder("Write a comment").fill(commentBody);
   await page.locator(".inline-form button[type='submit']").click();
