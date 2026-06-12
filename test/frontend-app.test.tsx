@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "../apps/web/src/App";
 
@@ -55,6 +55,8 @@ const responses: Record<string, unknown> = {
 
 describe("React app", () => {
   beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem("projectflare.locale", "en");
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -70,7 +72,9 @@ describe("React app", () => {
   });
 
   afterEach(() => {
+    cleanup();
     vi.unstubAllGlobals();
+    localStorage.clear();
   });
 
   it("renders the project dashboard from API data", async () => {
@@ -80,5 +84,16 @@ describe("React app", () => {
     expect(await screen.findAllByText("Design React shell")).toHaveLength(2);
     expect(screen.getByText("Demo Workspace")).toBeTruthy();
     expect(screen.getByText("Overview")).toBeTruthy();
+  });
+
+  it("switches the UI language to Japanese", async () => {
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Cloudflare Native MVP" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Language" }));
+
+    expect(screen.getByText("概要")).toBeTruthy();
+    expect(screen.getByText("タスク")).toBeTruthy();
+    expect(document.documentElement.lang).toBe("ja");
   });
 });

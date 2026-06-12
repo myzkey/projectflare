@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
+import { detectInitialLocale, dictionaries, type Locale, localeNames, type Messages } from "./i18n";
 import type {
   AccessUser,
   GitHubEvent,
@@ -34,20 +35,13 @@ import type {
   Workspace,
 } from "./types";
 
-const statusLabels: Record<TaskStatus, string> = {
-  todo: "Todo",
-  in_progress: "In Progress",
-  review: "Review",
-  done: "Done",
-  archived: "Archived",
-};
-
-const statuses = Object.keys(statusLabels) as TaskStatus[];
+const statuses: TaskStatus[] = ["todo", "in_progress", "review", "done", "archived"];
 const priorities: TaskPriority[] = ["low", "medium", "high", "urgent"];
 const tabs = ["overview", "plan", "wiki", "integrations"] as const;
 type Tab = (typeof tabs)[number];
 
 export function App() {
+  const [locale, setLocale] = useState<Locale>(() => detectInitialLocale());
   const [me, setMe] = useState<AccessUser | null>(null);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -73,6 +67,7 @@ export function App() {
   const selectedWikiPage = wikiPages.find((page) => page.id === selectedWikiPageId) ?? wikiPages[0] ?? null;
   const selectedTaskIdForLoad = selectedTask?.id ?? null;
   const selectedWikiPageIdForLoad = selectedWikiPage?.id ?? null;
+  const messages = dictionaries[locale];
 
   const stats = useMemo(() => {
     const open = tasks.filter((task) => !["done", "archived"].includes(task.status)).length;
@@ -89,6 +84,11 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    document.documentElement.lang = locale;
+    localStorage.setItem("projectflare.locale", locale);
+  }, [locale]);
+
+  useEffect(() => {
     if (!selectedTaskIdForLoad) {
       setComments([]);
       return;
@@ -96,8 +96,8 @@ export function App() {
     void api
       .comments(selectedTaskIdForLoad)
       .then(setComments)
-      .catch((caught) => setError(caught instanceof Error ? caught.message : "Unknown error"));
-  }, [selectedTaskIdForLoad]);
+      .catch((caught) => setError(caught instanceof Error ? caught.message : messages.overview.unknown));
+  }, [selectedTaskIdForLoad, messages.overview.unknown]);
 
   useEffect(() => {
     if (!selectedWikiPageIdForLoad) {
@@ -107,15 +107,15 @@ export function App() {
     void api
       .wikiRevisions(selectedWikiPageIdForLoad)
       .then(setWikiRevisions)
-      .catch((caught) => setError(caught instanceof Error ? caught.message : "Unknown error"));
-  }, [selectedWikiPageIdForLoad]);
+      .catch((caught) => setError(caught instanceof Error ? caught.message : messages.overview.unknown));
+  }, [selectedWikiPageIdForLoad, messages.overview.unknown]);
 
   async function run(action: () => Promise<void>) {
     try {
       setError(null);
       await action();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unknown error");
+      setError(caught instanceof Error ? caught.message : messages.overview.unknown);
     }
   }
 
@@ -271,7 +271,10 @@ export function App() {
     await run(async () => {
       const endpoint = await api.createWebhookEndpoint(project.id, body);
       setNotice(
-        `New token: ${endpoint.token ?? "hidden"} / ${endpoint.endpoint_url ?? `/api/webhooks/generic/${endpoint.id}`}`,
+        messages.integrations.newToken(
+          endpoint.token ?? messages.integrations.hidden,
+          endpoint.endpoint_url ?? `/api/webhooks/generic/${endpoint.id}`,
+        ),
       );
       form.reset();
       await refreshProject();
@@ -294,7 +297,7 @@ export function App() {
     return (
       <main className="loading-screen">
         <Loader2 className="spin" size={32} />
-        <span>Loading ProjectFlare</span>
+        <span>{messages.loading}</span>
       </main>
     );
   }
@@ -306,7 +309,7 @@ export function App() {
           <span className="flare-block" />
           <div>
             <strong>ProjectFlare</strong>
-            <small>Cloudflare-native project OS</small>
+            <small>{messages.appSubtitle}</small>
           </div>
         </div>
 
@@ -314,13 +317,13 @@ export function App() {
           {tabs.map((item) => (
             <button key={item} type="button" className={tab === item ? "active" : ""} onClick={() => setTab(item)}>
               {tabIcon(item)}
-              <span>{tabLabel(item)}</span>
+              <span>{messages.tabs[item]}</span>
             </button>
           ))}
         </nav>
 
         <section className="user-strip">
-          <small>Signed in</small>
+          <small>{messages.signedIn}</small>
           <strong>{me?.name}</strong>
           <span>{me?.email}</span>
         </section>
@@ -329,14 +332,23 @@ export function App() {
       <main className="workspace">
         <header className="topbar">
           <div>
-            <small>{workspace?.name ?? "No workspace"}</small>
-            <h1>{project?.name ?? "Create a project"}</h1>
-            <p>{project?.description ?? "Tasks, notes, webhooks, and delivery signals in one Worker."}</p>
+            <small>{workspace?.name ?? messages.noWorkspace}</small>
+            <h1>{project?.name ?? messages.createProjectTitle}</h1>
+            <p>{project?.description ?? messages.projectFallback}</p>
           </div>
           <div className="top-actions">
+            <button
+              type="button"
+              className="language-button"
+              aria-label={messages.language.label}
+              onClick={() => setLocale(locale === "en" ? "ja" : "en")}
+            >
+              <span>{localeNames[locale]}</span>
+              <strong>{messages.language.switchTo}</strong>
+            </button>
             <span className="signal">
               <Sparkles size={16} />
-              {project?.github_repository_url ? "GitHub linked" : "Ready"}
+              {project?.github_repository_url ? messages.githubLinked : messages.ready}
             </span>
             <button type="button" className="icon-button" onClick={() => void run(async () => refreshProject())}>
               <RadioTower size={18} />
@@ -348,7 +360,7 @@ export function App() {
           <div className={error ? "toast error" : "toast"}>
             {error ?? notice}
             <button type="button" onClick={() => (error ? setError(null) : setNotice(null))}>
-              Dismiss
+              {messages.dismiss}
             </button>
           </div>
         )}
@@ -377,9 +389,13 @@ export function App() {
             onCreateTask={createTask}
             onCreateProject={createProject}
             onCreateComment={createComment}
+            messages={messages}
+            locale={locale}
           />
         )}
-        {tab === "plan" && <Plan tasks={tasks} dependencies={dependencies} onCreateDependency={createDependency} />}
+        {tab === "plan" && (
+          <Plan tasks={tasks} dependencies={dependencies} onCreateDependency={createDependency} messages={messages} />
+        )}
         {tab === "wiki" && (
           <Wiki
             pages={wikiPages}
@@ -387,6 +403,8 @@ export function App() {
             revisions={wikiRevisions}
             onSelectPage={setSelectedWikiPageId}
             onSaveWiki={saveWiki}
+            messages={messages}
+            locale={locale}
           />
         )}
         {tab === "integrations" && project && workspace && (
@@ -401,6 +419,8 @@ export function App() {
             onCreateGitHubRepository={createGitHubRepository}
             onCreateWebhookEndpoint={createWebhookEndpoint}
             onCreateNotificationChannel={createNotificationChannel}
+            messages={messages}
+            locale={locale}
           />
         )}
       </main>
@@ -418,24 +438,34 @@ function Overview(props: {
   onCreateTask(event: FormEvent<HTMLFormElement>): Promise<void>;
   onCreateProject(event: FormEvent<HTMLFormElement>): Promise<void>;
   onCreateComment(event: FormEvent<HTMLFormElement>): Promise<void>;
+  messages: Messages;
+  locale: Locale;
 }) {
   return (
     <section className="dashboard-grid">
       <div className="stat-band">
-        <Metric label="Open" value={props.stats.open} />
-        <Metric label="Review" value={props.stats.review} />
-        <Metric label="Done" value={props.stats.done} />
-        <Metric label="Overdue" value={props.stats.overdue} tone={props.stats.overdue ? "hot" : undefined} />
+        <Metric label={props.messages.metrics.open} value={props.stats.open} />
+        <Metric label={props.messages.metrics.review} value={props.stats.review} />
+        <Metric label={props.messages.metrics.done} value={props.stats.done} />
+        <Metric
+          label={props.messages.metrics.overdue}
+          value={props.stats.overdue}
+          tone={props.stats.overdue ? "hot" : undefined}
+        />
       </div>
 
       <section className="panel task-panel">
-        <PanelTitle icon={<CheckCircle2 size={18} />} title="Tasks" meta={`${props.tasks.length} tasks`} />
+        <PanelTitle
+          icon={<CheckCircle2 size={18} />}
+          title={props.messages.overview.tasks}
+          meta={props.messages.overview.taskCount(props.tasks.length)}
+        />
         <div className="task-table">
           {props.tasks.map((task) => (
             <article key={task.id} className={props.selectedTask?.id === task.id ? "task-row selected" : "task-row"}>
               <button type="button" className="task-name" onClick={() => props.onSelectTask(task.id)}>
                 <strong>{task.title}</strong>
-                <span>{task.description || "No description"}</span>
+                <span>{task.description || props.messages.overview.noDescription}</span>
               </button>
               <select
                 defaultValue={task.status}
@@ -443,7 +473,7 @@ function Overview(props: {
               >
                 {statuses.map((status) => (
                   <option key={status} value={status}>
-                    {statusLabels[status]}
+                    {props.messages.status[status]}
                   </option>
                 ))}
               </select>
@@ -455,7 +485,7 @@ function Overview(props: {
               >
                 {priorities.map((priority) => (
                   <option key={priority} value={priority}>
-                    {priority}
+                    {props.messages.priority[priority]}
                   </option>
                 ))}
               </select>
@@ -466,15 +496,19 @@ function Overview(props: {
       </section>
 
       <aside className="panel side-stack">
-        <PanelTitle icon={<Plus size={18} />} title="Create" meta="project / task" />
+        <PanelTitle
+          icon={<Plus size={18} />}
+          title={props.messages.overview.create}
+          meta={props.messages.overview.createMeta}
+        />
         <form className="form-grid" onSubmit={(event) => void props.onCreateTask(event)}>
-          <input name="title" placeholder="Task title" required />
-          <textarea name="description" placeholder="Description" />
+          <input name="title" placeholder={props.messages.overview.taskTitle} required />
+          <textarea name="description" placeholder={props.messages.overview.description} />
           <div className="two-col">
             <select name="priority" defaultValue="medium">
               {priorities.map((priority) => (
                 <option key={priority} value={priority}>
-                  {priority}
+                  {props.messages.priority[priority]}
                 </option>
               ))}
             </select>
@@ -482,36 +516,40 @@ function Overview(props: {
           </div>
           <button type="submit">
             <Plus size={16} />
-            Add task
+            {props.messages.overview.addTask}
           </button>
         </form>
         <form className="form-grid compact" onSubmit={(event) => void props.onCreateProject(event)}>
-          <input name="name" placeholder="New project name" required />
-          <input name="description" placeholder="Short description" />
+          <input name="name" placeholder={props.messages.overview.newProjectName} required />
+          <input name="description" placeholder={props.messages.overview.shortDescription} />
           <button type="submit">
             <Plus size={16} />
-            Add project
+            {props.messages.overview.addProject}
           </button>
         </form>
       </aside>
 
       <section className="panel comment-panel">
-        <PanelTitle icon={<MessageSquare size={18} />} title="Comments" meta={props.selectedTask?.title ?? "No task"} />
+        <PanelTitle
+          icon={<MessageSquare size={18} />}
+          title={props.messages.overview.comments}
+          meta={props.selectedTask?.title ?? props.messages.overview.noTask}
+        />
         <div className="comment-list">
           {props.comments.length ? (
             props.comments.map((comment) => (
               <article key={comment.id} className="comment">
-                <strong>{comment.author_name || "Unknown"}</strong>
-                <small>{formatDate(comment.created_at)}</small>
+                <strong>{comment.author_name || props.messages.overview.unknown}</strong>
+                <small>{formatDate(comment.created_at, props.locale)}</small>
                 <p>{comment.body}</p>
               </article>
             ))
           ) : (
-            <p className="empty">Select a task and add the first note.</p>
+            <p className="empty">{props.messages.overview.emptyComments}</p>
           )}
         </div>
         <form className="inline-form" onSubmit={(event) => void props.onCreateComment(event)}>
-          <input name="body" placeholder="Write a comment" required />
+          <input name="body" placeholder={props.messages.overview.writeComment} required />
           <button type="submit">
             <Send size={16} />
           </button>
@@ -525,6 +563,7 @@ function Plan(props: {
   tasks: Task[];
   dependencies: TaskDependency[];
   onCreateDependency(event: FormEvent<HTMLFormElement>): Promise<void>;
+  messages: Messages;
 }) {
   const bounds = timelineBounds(props.tasks);
 
@@ -533,8 +572,8 @@ function Plan(props: {
       <section className="panel">
         <PanelTitle
           icon={<GitBranch size={18} />}
-          title="Timeline"
-          meta={`${props.dependencies.length} dependencies`}
+          title={props.messages.plan.timeline}
+          meta={props.messages.plan.dependencyCount(props.dependencies.length)}
         />
         <div className="timeline">
           {props.tasks.map((task) => {
@@ -552,7 +591,11 @@ function Plan(props: {
       </section>
 
       <aside className="panel">
-        <PanelTitle icon={<Link2 size={18} />} title="Dependencies" meta="planning links" />
+        <PanelTitle
+          icon={<Link2 size={18} />}
+          title={props.messages.plan.dependencies}
+          meta={props.messages.plan.planningLinks}
+        />
         <form className="form-grid" onSubmit={(event) => void props.onCreateDependency(event)}>
           <select name="task_id">
             {props.tasks.map((task) => (
@@ -570,15 +613,15 @@ function Plan(props: {
           </select>
           <button type="submit">
             <Link2 size={16} />
-            Link tasks
+            {props.messages.plan.linkTasks}
           </button>
         </form>
         <div className="dependency-list">
           {props.dependencies.map((dependency) => (
             <article key={`${dependency.task_id}-${dependency.depends_on_task_id}`}>
-              <small>before</small>
+              <small>{props.messages.plan.before}</small>
               <strong>{dependency.task_title || dependency.task_id}</strong>
-              <small>needs</small>
+              <small>{props.messages.plan.needs}</small>
               <strong>{dependency.depends_on_title || dependency.depends_on_task_id}</strong>
             </article>
           ))}
@@ -594,11 +637,17 @@ function Wiki(props: {
   revisions: WikiRevision[];
   onSelectPage(id: string): void;
   onSaveWiki(event: FormEvent<HTMLFormElement>): Promise<void>;
+  messages: Messages;
+  locale: Locale;
 }) {
   return (
     <section className="wiki-layout">
       <aside className="panel wiki-index">
-        <PanelTitle icon={<BookOpenText size={18} />} title="Pages" meta={`${props.pages.length} pages`} />
+        <PanelTitle
+          icon={<BookOpenText size={18} />}
+          title={props.messages.wiki.pages}
+          meta={props.messages.wiki.pageCount(props.pages.length)}
+        />
         {props.pages.map((page) => (
           <button
             key={page.id}
@@ -613,29 +662,42 @@ function Wiki(props: {
       </aside>
 
       <section className="panel wiki-editor">
-        <PanelTitle icon={<Save size={18} />} title="Editor" meta={`${props.revisions.length} revisions`} />
+        <PanelTitle
+          icon={<Save size={18} />}
+          title={props.messages.wiki.editor}
+          meta={props.messages.wiki.revisionCount(props.revisions.length)}
+        />
         <form className="wiki-form" onSubmit={(event) => void props.onSaveWiki(event)}>
-          <input name="title" placeholder="Page title" defaultValue={props.selectedPage?.title ?? ""} required />
-          <input name="slug" placeholder="slug" defaultValue={props.selectedPage?.slug ?? ""} />
+          <input
+            name="title"
+            placeholder={props.messages.wiki.pageTitle}
+            defaultValue={props.selectedPage?.title ?? ""}
+            required
+          />
+          <input name="slug" placeholder={props.messages.wiki.slug} defaultValue={props.selectedPage?.slug ?? ""} />
           <textarea
             name="body_markdown"
-            placeholder="Markdown body"
+            placeholder={props.messages.wiki.markdownBody}
             defaultValue={props.selectedPage?.body_markdown ?? ""}
           />
           <button type="submit">
             <Save size={16} />
-            Save page
+            {props.messages.wiki.savePage}
           </button>
         </form>
       </section>
 
       <aside className="panel">
-        <PanelTitle icon={<BookOpenText size={18} />} title="Revisions" meta="history" />
+        <PanelTitle
+          icon={<BookOpenText size={18} />}
+          title={props.messages.wiki.revisions}
+          meta={props.messages.wiki.history}
+        />
         <div className="event-list">
           {props.revisions.map((revision) => (
             <article key={revision.id}>
-              <strong>{revision.author_name || "Unknown"}</strong>
-              <small>{formatDate(revision.created_at)}</small>
+              <strong>{revision.author_name || props.messages.wiki.unknown}</strong>
+              <small>{formatDate(revision.created_at, props.locale)}</small>
             </article>
           ))}
         </div>
@@ -655,22 +717,28 @@ function Integrations(props: {
   onCreateGitHubRepository(event: FormEvent<HTMLFormElement>): Promise<void>;
   onCreateWebhookEndpoint(event: FormEvent<HTMLFormElement>): Promise<void>;
   onCreateNotificationChannel(event: FormEvent<HTMLFormElement>): Promise<void>;
+  messages: Messages;
+  locale: Locale;
 }) {
   const linkedRepos = props.githubRepos.filter((repo) => repo.project_id === props.project.id);
 
   return (
     <section className="integrations-grid">
       <section className="panel">
-        <PanelTitle icon={<GitPullRequest size={18} />} title="GitHub" meta={`${props.githubEvents.length} events`} />
+        <PanelTitle
+          icon={<GitPullRequest size={18} />}
+          title="GitHub"
+          meta={props.messages.integrations.eventCount(props.githubEvents.length)}
+        />
         <form className="form-grid" onSubmit={(event) => void props.onCreateGitHubRepository(event)}>
           <div className="two-col">
-            <input name="owner" placeholder="owner" required />
-            <input name="name" placeholder="repo" required />
+            <input name="owner" placeholder={props.messages.integrations.owner} required />
+            <input name="name" placeholder={props.messages.integrations.repo} required />
           </div>
-          <input name="repository_url" placeholder="https://github.com/owner/repo" required />
+          <input name="repository_url" placeholder={props.messages.integrations.repositoryUrl} required />
           <button type="submit">
             <GitPullRequest size={16} />
-            Link repository
+            {props.messages.integrations.linkRepository}
           </button>
         </form>
         <div className="event-list">
@@ -686,7 +754,7 @@ function Integrations(props: {
             <article key={event.id}>
               <strong>{event.event_type}</strong>
               <small>
-                {event.status} / {formatDate(event.created_at)}
+                {event.status} / {formatDate(event.created_at, props.locale)}
               </small>
             </article>
           ))}
@@ -696,24 +764,24 @@ function Integrations(props: {
       <section className="panel">
         <PanelTitle
           icon={<RadioTower size={18} />}
-          title="Generic Webhooks"
-          meta={`${props.webhookEndpoints.length} endpoints`}
+          title={props.messages.integrations.genericWebhooks}
+          meta={props.messages.integrations.endpointCount(props.webhookEndpoints.length)}
         />
         <form className="form-grid" onSubmit={(event) => void props.onCreateWebhookEndpoint(event)}>
-          <input name="name" placeholder="Endpoint name" required />
+          <input name="name" placeholder={props.messages.integrations.endpointName} required />
           <div className="two-col">
-            <input name="source" placeholder="source" />
+            <input name="source" placeholder={props.messages.integrations.source} />
             <select name="default_priority" defaultValue="medium">
               {priorities.map((priority) => (
                 <option key={priority} value={priority}>
-                  {priority}
+                  {props.messages.priority[priority]}
                 </option>
               ))}
             </select>
           </div>
           <button type="submit">
             <RadioTower size={16} />
-            Create endpoint
+            {props.messages.integrations.createEndpoint}
           </button>
         </form>
         <div className="event-list">
@@ -731,22 +799,22 @@ function Integrations(props: {
       <section className="panel">
         <PanelTitle
           icon={<Bell size={18} />}
-          title="Notifications"
-          meta={`${props.notifications.filter((item) => !item.read_at).length} unread`}
+          title={props.messages.integrations.notifications}
+          meta={props.messages.integrations.unreadCount(props.notifications.filter((item) => !item.read_at).length)}
         />
         <form className="form-grid" onSubmit={(event) => void props.onCreateNotificationChannel(event)}>
-          <input name="name" placeholder="Channel name" required />
+          <input name="name" placeholder={props.messages.integrations.channelName} required />
           <div className="two-col">
             <select name="channel_type" defaultValue="webhook">
               <option value="webhook">webhook</option>
               <option value="slack">slack</option>
               <option value="lark">lark</option>
             </select>
-            <input name="target_url" placeholder="target URL" required />
+            <input name="target_url" placeholder={props.messages.integrations.targetUrl} required />
           </div>
           <button type="submit">
             <Bell size={16} />
-            Add channel
+            {props.messages.integrations.addChannel}
           </button>
         </form>
         <div className="event-list">
@@ -762,7 +830,7 @@ function Integrations(props: {
             <article key={notification.id}>
               <strong>{notification.title}</strong>
               <small>
-                {notification.source} / {formatDate(notification.created_at)}
+                {notification.source} / {formatDate(notification.created_at, props.locale)}
               </small>
               <p>{notification.body}</p>
             </article>
@@ -812,13 +880,6 @@ function tabIcon(tab: Tab) {
   return <RadioTower size={17} />;
 }
 
-function tabLabel(tab: Tab) {
-  if (tab === "overview") return "Overview";
-  if (tab === "plan") return "Plan";
-  if (tab === "wiki") return "Wiki";
-  return "Integrations";
-}
-
 function timelineBounds(tasks: Task[]) {
   const dates = tasks
     .flatMap((task) => [task.starts_on, task.due_on].filter(Boolean))
@@ -836,8 +897,11 @@ function timelinePosition(task: Task, bounds: { min: number; span: number }) {
   return { left, width };
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(
-    new Date(value),
-  );
+function formatDate(value: string, locale: Locale) {
+  return new Intl.DateTimeFormat(locale === "ja" ? "ja-JP" : "en", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 }

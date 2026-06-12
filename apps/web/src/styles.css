@@ -185,13 +185,31 @@ button {
 }
 
 .signal,
-.toast {
+.toast,
+.language-button {
   display: flex;
   align-items: center;
   gap: 8px;
   border: 1px solid var(--line);
   background: var(--panel);
   padding: 9px 11px;
+}
+
+.language-button {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  min-width: 92px;
+  color: var(--ink);
+}
+
+.language-button span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.language-button strong {
+  font-size: 14px;
 }
 
 .icon-button {
