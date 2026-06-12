@@ -15,116 +15,27 @@ Jira、Linear、Notion、Redmine、OpenProject の完全な置き換えを最初
 - Webhook: 外部サービスからのタスク登録
 - MCP: 将来的なAIエージェントからの操作口
 
-## 現在できること
+## 機能
 
-- Cloudflare Worker で API と React 管理画面を配信
-- D1 schema によるワークスペース、プロジェクト、タスク、コメント、Wiki、Webhook、GitHub連携、添付、監査ログの土台
-- Cloudflare Access のヘッダーを使ったユーザー自動作成
-- ワークスペースとプロジェクト作成
-- タスク作成、ステータス/優先度/進捗率の更新、ステータス集計、簡易ガントタイムライン
-- ガント計画向けのタスク依存関係
-- タスク説明、タスクコメント、Wikiページ向けのMarkdown保存リッチエディタ
-- Markdown Wikiページ一覧、編集、プレビュー、更新履歴
-- R2 object storage と D1 metadata によるタスク/Wikiの画像・軽量動画添付
-- アップロード済みメディアのMarkdownをコメント/Wikiエディタへ挿入
-- コメント/Wikiエディタへの画像・軽量動画のペースト/ドロップによる自動アップロードとMarkdown挿入
-- GitHub Repository連携、Webhook受信、Issue/コメント/PR同期、Queue処理
-- トークン付きGeneric Webhook endpoint、アプリ内通知、Slack/Lark/Webhook通知チャンネル
-- JSONからタスクを作成できる Generic Webhook
-- Webhook/GitHub連携の非同期処理に向けた Queue producer
-- React/Vite による密度高めのプロジェクト管理UI
+- Cloudflare 上で動く管理画面からワークスペースとプロジェクトを管理
+- ステータス、優先度、担当者、カテゴリ、タグ、マイルストーン、日付、進捗率、親タスクを持つタスク作成
+- ネストしたタスク、依存関係、ステータス集計、簡易ガント風の計画ビュー
+- 最新順、件数制限、長文展開に対応したタスクコメント
+- タスク説明、タスクコメント、Wikiページを Markdown 保存のリッチエディタで編集
+- タスクとWikiページに画像・軽量動画をアップロード
+- アップロード済みメディアを Markdown としてコメント/Wikiに挿入
+- コメント/Wikiエディタへ画像・動画をペースト/ドロップして自動アップロードと挿入
+- 更新履歴付きの Markdown Wiki ページ作成/編集
+- GitHub Repository を連携し、Issue、コメント、Pull Request webhook を受信
+- 外部JSONからタスクを作成するトークン付き Generic Webhook endpoint
+- アプリ内通知、Slack、Lark、汎用 Webhook への送信通知
+- capability、hook、route、plugin scoped storage を宣言する first-party plugin
 - `ar`、`de`、`en`、`es-419`、`es-ES`、`eu`、`fa`、`fr`、`id`、`ja`、`ko`、`nb`、`pl`、`pseudo`、`pt-BR`、`th`、`zh-CN`、`zh-TW` の18ロケール対応
 - アラビア語とペルシア語のRTL表示
-- EmDash を参考にした plugin foundation。manifest、capability、lifecycle/task hook、plugin route、plugin scoped KV/event table を持つ
-- Biome、Vitest、TypeScript typecheck、Conventional Commits
 
-## アーキテクチャ
+## 詳細ドキュメント
 
-ProjectFlare は Clean Architecture の方向性で、小さな pnpm workspace として構成しています。
-
-```txt
-apps/web                 React 管理画面
-packages/admin          管理画面向け API client、UI type、locale catalog
-packages/core           domain model、use case、port
-packages/cloudflare     Worker entrypoint、HTTP presentation、D1 adapter、Cloudflare binding
-packages/plugin-api     first-party / 将来の third-party plugin 向け definePlugin API
-packages/plugins        first-party plugin
-migrations              統合済み D1 initial schema と seed data
-test                    unit test と Worker/API test
-```
-
-依存方向は以下を意識しています。
-
-```txt
-apps/web -> HTTP API
-packages/cloudflare -> packages/core
-packages/cloudflare -> packages/plugin-api + packages/plugins
-apps/web -> packages/admin
-packages/core -> Cloudflare runtime に依存しない
-```
-
-ビジネスルールは `packages/core` に置き、Cloudflare 固有の処理、D1 SQL、Queue連携、HTTP request/response は `packages/cloudflare` に分離しています。React app は HTTP API 経由で ProjectFlare を操作し、UI都合を domain package に持ち込まない方針です。
-
-## プラグインアーキテクチャ
-
-ProjectFlare には EmDash を参考にした最初のプラグイン基盤を入れています。
-
-- `definePlugin()` で plugin descriptor と任意の route/hook handler を宣言
-- `PluginDescriptor` で id、version、entrypoint、capability、hook、route、settings schema、storage collection を宣言
-- install 時に capability を承認し、workspace ごとの installed plugin として保存
-- `plugin:install`、`plugin:activate`、`plugin:deactivate` の lifecycle hook
-- `task:created` に反応できる task hook
-- `/api/workspaces/:workspaceId/plugins/:pluginId/routes/:routeName` で plugin route を呼び出し
-- installed plugin、plugin KV、plugin event は D1 table で workspace/plugin 単位に分離
-
-現時点では `packages/plugins` の first-party plugin を host runtime adapter で実行します。runtime は Clean Architecture の port として分離しているため、将来的には EmDash と同じ方向で Cloudflare Dynamic Workers による isolated execution と明示的な権限制御へ差し替えられる設計です。
-
-## MCP / Agent surface
-
-最初の MCP tool schema descriptor を `packages/core/src/mcp-api` に置いています。現時点では project list、task list/create、notification send を capability とセットで定義しています。AI agent からのアクセスも plugin と同じ capability model に揃える方針です。
-
-## 実装済みAPI
-
-- `GET /api/me`
-- `GET /api/workspaces`
-- `POST /api/workspaces`
-- `GET /api/workspaces/:workspaceId/projects`
-- `POST /api/workspaces/:workspaceId/projects`
-- `GET /api/projects/:projectId`
-- `PATCH /api/projects/:projectId`
-- `GET /api/projects/:projectId/tasks`
-- `POST /api/projects/:projectId/tasks`
-- `GET /api/projects/:projectId/dependencies`
-- `GET /api/projects/:projectId/wiki`
-- `POST /api/projects/:projectId/wiki`
-- `PATCH /api/tasks/:taskId`
-- `GET /api/tasks/:taskId/dependencies`
-- `POST /api/tasks/:taskId/dependencies`
-- `GET /api/tasks/:taskId/comments`
-- `POST /api/tasks/:taskId/comments`
-- `GET /api/tasks/:taskId/attachments`
-- `POST /api/tasks/:taskId/attachments`
-- `GET /api/wiki/:pageId`
-- `PATCH /api/wiki/:pageId`
-- `GET /api/wiki/:pageId/revisions`
-- `GET /api/wiki/:pageId/attachments`
-- `POST /api/wiki/:pageId/attachments`
-- `GET /api/attachments/:attachmentId/content`
-- `GET /api/workspaces/:workspaceId/github/repositories`
-- `POST /api/workspaces/:workspaceId/github/repositories`
-- `GET /api/plugins/catalog`
-- `GET /api/workspaces/:workspaceId/plugins`
-- `POST /api/workspaces/:workspaceId/plugins`
-- `PATCH /api/workspaces/:workspaceId/plugins/:pluginId`
-- `POST /api/workspaces/:workspaceId/plugins/:pluginId/routes/:routeName`
-- `GET /api/projects/:projectId/github/events`
-- `POST /api/github/webhook`
-- `GET /api/projects/:projectId/webhook-endpoints`
-- `POST /api/projects/:projectId/webhook-endpoints`
-- `GET /api/projects/:projectId/notification-channels`
-- `POST /api/projects/:projectId/notification-channels`
-- `GET /api/projects/:projectId/notifications`
-- `PATCH /api/notifications/:notificationId`
+- [アーキテクチャ](./docs/architecture.md)
 
 ## Phase 1: ワークスペース、プロジェクト、タスク、コメント
 
@@ -243,6 +154,8 @@ test: cover github webhook processing
 
 ## Cloudflareへのセットアップ
 
+ProjectFlare は EmDash と同じく Wrangler-first のデプロイ方針にします。Cloudflare resource は `wrangler.toml` に binding として定義し、アプリは `pnpm deploy` で build/deploy します。標準の OSS フローでは setup shell や Terraform module は必須にしません。
+
 1. D1 database を作成します。
 
 ```sh
@@ -270,6 +183,8 @@ pnpm deploy
 ```
 
 6. Worker を Cloudflare Access の背後に置きます。ProjectFlare は `CF-Access-Authenticated-User-Email`、`CF-Access-Authenticated-User-Name`、`Cf-Access-Groups` があれば読み取り、内部ユーザーとして扱います。
+
+`wrangler.toml` は Worker binding の source of truth として扱います。D1、R2、Queues、Access、secrets などの初回作成は Cloudflare dashboard または Wrangler CLI で行います。
 
 ## Generic Webhook
 

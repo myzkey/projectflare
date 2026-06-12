@@ -34,6 +34,8 @@ The React client is built by Vite into `dist/client` and served through the Work
 
 This is intentionally a small pnpm workspace inspired by EmDash's package-oriented layout: core behavior is portable, while Cloudflare-specific code sits in a dedicated adapter package.
 
+Deployment follows EmDash's Wrangler-first model. `wrangler.toml` owns Worker bindings for D1, R2, Queues, and assets, while pnpm scripts wrap build, migration, and deploy commands. Terraform and setup shell scripts are optional operator choices, not part of the default ProjectFlare architecture.
+
 ProjectFlare borrows EmDash's strongest architectural ideas for its project-management domain:
 
 - first-party plugins are authored through `definePlugin()` in `packages/plugin-api`

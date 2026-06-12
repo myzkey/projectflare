@@ -17,116 +17,27 @@ ProjectFlare is not trying to replace Jira, Linear, Notion, Redmine, or OpenProj
 - Webhooks: intake from external systems
 - MCP: future AI-agent operation surface
 
-## Current Surface
+## Features
 
-- Cloudflare Worker serving API and the React admin UI
-- D1 schema for workspaces, projects, tasks, comments, wiki, webhooks, GitHub integration records, attachments, and audit logs
-- Cloudflare Access-aware user bootstrap from request headers
-- Workspace and project creation
-- Task creation, status/priority/progress updates, status summary, and simple gantt timeline
-- Task dependency capture for gantt planning
-- Markdown-backed rich editing for task descriptions, task comments, and wiki pages
-- Markdown wiki page listing, editing, preview, and revision history
-- Image and lightweight video uploads for task and wiki attachments, backed by R2 object storage and D1 metadata
-- Insert uploaded media Markdown into the active comment or wiki editor
-- Paste or drop image/lightweight video files into comment and wiki editors to upload and insert Markdown automatically
-- GitHub repository linking, webhook intake, issue/comment/PR sync, and queue processing
-- Tokenized generic webhook endpoints, app notifications, and outgoing Slack/Lark/webhook notification channels
-- Generic webhook endpoint that can create tasks from JSON
-- Queue producer hook for webhook/GitHub-style async processing
-- React/Vite admin UI with a dense project command-center layout
-- Frontend localization for `ar`, `de`, `en`, `es-419`, `es-ES`, `eu`, `fa`, `fr`, `id`, `ja`, `ko`, `nb`, `pl`, `pseudo`, `pt-BR`, `th`, `zh-CN`, and `zh-TW`
-- RTL document direction for Arabic and Persian
-- EmDash-inspired plugin foundation with manifests, capabilities, lifecycle/task hooks, plugin routes, and plugin-scoped KV/event tables
-- Biome linting/formatting, Vitest coverage, TypeScript type checking, and Conventional Commits
+- Manage workspaces and projects from a Cloudflare-hosted admin UI
+- Create tasks with status, priority, assignee, category, tags, milestone, dates, progress, and parent task
+- Track nested tasks, dependencies, status metrics, and a simple gantt-style planning view
+- Add latest-first task comments with bounded loading and expandable long text
+- Write task descriptions, task comments, and wiki pages with a Markdown-backed rich editor
+- Upload images and lightweight videos to tasks and wiki pages
+- Insert uploaded media into comments or wiki pages as Markdown
+- Paste or drop image/video files directly into comment and wiki editors to upload and insert them
+- Create and edit Markdown wiki pages with revision history
+- Link GitHub repositories and receive issue, comment, and pull request webhook events
+- Create tokenized generic webhook endpoints that turn external JSON into tasks
+- Send app notifications and outgoing Slack, Lark, or generic webhook notifications
+- Install first-party plugins with declared capabilities, hooks, routes, and plugin-scoped storage
+- Use the admin UI in 18 locales: `ar`, `de`, `en`, `es-419`, `es-ES`, `eu`, `fa`, `fr`, `id`, `ja`, `ko`, `nb`, `pl`, `pseudo`, `pt-BR`, `th`, `zh-CN`, and `zh-TW`
+- Use RTL layout for Arabic and Persian
 
-## Architecture
+## More Documentation
 
-ProjectFlare follows a Clean Architecture direction in a small pnpm workspace:
-
-```txt
-apps/web                 React admin UI
-packages/admin          shared admin API client, UI types, and locale catalogs
-packages/core           domain models, use cases, and ports
-packages/cloudflare     Worker entrypoint, HTTP presentation, D1 adapters, Cloudflare bindings
-packages/plugin-api     definePlugin API for first-party and future third-party plugins
-packages/plugins        first-party plugins
-migrations              consolidated D1 initial schema and seed data
-test                    unit and Worker/API tests
-```
-
-The intended dependency direction is:
-
-```txt
-apps/web -> HTTP API
-packages/cloudflare -> packages/core
-packages/cloudflare -> packages/plugin-api + packages/plugins
-apps/web -> packages/admin
-packages/core -> no Cloudflare runtime dependency
-```
-
-Core business rules live in `packages/core`. Cloudflare-specific code, D1 SQL, queue integration, and request/response handling live in `packages/cloudflare`. The React app talks to ProjectFlare through the HTTP API and keeps UI concerns out of the domain package.
-
-## Plugin Architecture
-
-ProjectFlare has a first plugin foundation inspired by EmDash:
-
-- `definePlugin()` wraps plugin descriptors and optional route/hook handlers
-- `PluginDescriptor` declares id, version, entrypoint, capabilities, hooks, routes, settings schema, and storage collections
-- capabilities are approved at install time and stored with the workspace installation
-- lifecycle hooks are available for `plugin:install`, `plugin:activate`, and `plugin:deactivate`
-- task hooks can react to `task:created`
-- plugin routes are invoked through `/api/workspaces/:workspaceId/plugins/:pluginId/routes/:routeName`
-- plugin data is scoped through D1 tables for installed plugins, plugin KV, and plugin events
-
-Current first-party plugins live in `packages/plugins` and run through a host runtime adapter. The Clean Architecture port is intentionally shaped so a future Cloudflare Dynamic Worker runner can replace the in-process runtime for third-party plugins, matching the EmDash security direction of isolated execution and explicit permissions.
-
-## MCP / Agent Surface
-
-ProjectFlare exposes the first MCP tool schema descriptors under `packages/core/src/mcp-api`. The current descriptors cover project listing, task listing/creation, and notification sending with explicit required capabilities. This keeps agent access aligned with the same capability model used by plugins.
-
-## Implemented API
-
-- `GET /api/me`
-- `GET /api/workspaces`
-- `POST /api/workspaces`
-- `GET /api/workspaces/:workspaceId/projects`
-- `POST /api/workspaces/:workspaceId/projects`
-- `GET /api/projects/:projectId`
-- `PATCH /api/projects/:projectId`
-- `GET /api/projects/:projectId/tasks`
-- `POST /api/projects/:projectId/tasks`
-- `GET /api/projects/:projectId/dependencies`
-- `GET /api/projects/:projectId/wiki`
-- `POST /api/projects/:projectId/wiki`
-- `PATCH /api/tasks/:taskId`
-- `GET /api/tasks/:taskId/dependencies`
-- `POST /api/tasks/:taskId/dependencies`
-- `GET /api/tasks/:taskId/comments`
-- `POST /api/tasks/:taskId/comments`
-- `GET /api/tasks/:taskId/attachments`
-- `POST /api/tasks/:taskId/attachments`
-- `GET /api/wiki/:pageId`
-- `PATCH /api/wiki/:pageId`
-- `GET /api/wiki/:pageId/revisions`
-- `GET /api/wiki/:pageId/attachments`
-- `POST /api/wiki/:pageId/attachments`
-- `GET /api/attachments/:attachmentId/content`
-- `GET /api/workspaces/:workspaceId/github/repositories`
-- `POST /api/workspaces/:workspaceId/github/repositories`
-- `GET /api/plugins/catalog`
-- `GET /api/workspaces/:workspaceId/plugins`
-- `POST /api/workspaces/:workspaceId/plugins`
-- `PATCH /api/workspaces/:workspaceId/plugins/:pluginId`
-- `POST /api/workspaces/:workspaceId/plugins/:pluginId/routes/:routeName`
-- `GET /api/projects/:projectId/github/events`
-- `POST /api/github/webhook`
-- `GET /api/projects/:projectId/webhook-endpoints`
-- `POST /api/projects/:projectId/webhook-endpoints`
-- `GET /api/projects/:projectId/notification-channels`
-- `POST /api/projects/:projectId/notification-channels`
-- `GET /api/projects/:projectId/notifications`
-- `PATCH /api/notifications/:notificationId`
+- [Architecture](./docs/architecture.md)
 
 ## Phase 1: Workspaces, Projects, Tasks, Comments
 
@@ -245,6 +156,8 @@ test: cover github webhook processing
 
 ## Cloudflare Setup
 
+ProjectFlare follows the same Wrangler-first deployment shape as EmDash. Cloudflare resources are declared in `wrangler.toml`, and the app is built and deployed through `pnpm deploy`. A setup shell script or Terraform module is intentionally not required for the default OSS flow.
+
 1. Create a D1 database:
 
 ```sh
@@ -272,6 +185,8 @@ pnpm deploy
 ```
 
 6. Put the Worker behind Cloudflare Access. ProjectFlare reads `CF-Access-Authenticated-User-Email`, `CF-Access-Authenticated-User-Name`, and `Cf-Access-Groups` when present.
+
+`wrangler.toml` remains the source of truth for Worker bindings. Use Cloudflare dashboard or Wrangler CLI for one-time account resources such as D1, R2, Queues, Access, and secrets.
 
 ## Generic Webhook
 
