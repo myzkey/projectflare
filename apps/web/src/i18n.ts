@@ -52,6 +52,11 @@ export type Messages = {
     description: string;
     parentTask: string;
     rootTask: string;
+    category: string;
+    assignee: string;
+    tags: string;
+    milestone: string;
+    milestoneDue: string;
     addTask: string;
     newProjectName: string;
     shortDescription: string;
@@ -222,6 +227,11 @@ const en: Messages = {
     description: "Description",
     parentTask: "Parent task",
     rootTask: "No parent",
+    category: "Category",
+    assignee: "Assignee",
+    tags: "Tags",
+    milestone: "Milestone",
+    milestoneDue: "Milestone due",
     addTask: "Add task",
     newProjectName: "New project name",
     shortDescription: "Short description",
@@ -902,6 +912,11 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       description: "説明",
       parentTask: "親タスク",
       rootTask: "親なし",
+      category: "カテゴリ",
+      assignee: "担当者",
+      tags: "タグ",
+      milestone: "マイルストーン",
+      milestoneDue: "マイルストーン期限",
       addTask: "タスクを追加",
       newProjectName: "新しいプロジェクト名",
       shortDescription: "短い説明",

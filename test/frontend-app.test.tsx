@@ -65,7 +65,16 @@ const responses: Record<string, unknown> = {
       description: "Replace inline HTML with Vite assets",
       status: "in_progress",
       priority: "high",
+      assignee_user_id: "usr_1",
+      assignee_name: "Local User",
       parent_task_id: null,
+      category_id: "cat_product",
+      category_name: "Product",
+      category_color: "#16a34a",
+      milestone_id: "ms_mvp",
+      milestone_name: "MVP",
+      milestone_due_on: "2026-07-15",
+      tags: ["react", "ui"],
       starts_on: "2026-06-10",
       due_on: "2026-06-18",
       progress: 60,
@@ -78,7 +87,16 @@ const responses: Record<string, unknown> = {
       description: "Nest related work under a parent",
       status: "todo",
       priority: "medium",
+      assignee_user_id: null,
+      assignee_name: null,
       parent_task_id: "tsk_1",
+      category_id: "cat_product",
+      category_name: "Product",
+      category_color: "#16a34a",
+      milestone_id: "ms_mvp",
+      milestone_name: "MVP",
+      milestone_due_on: "2026-07-15",
+      tags: ["nesting"],
       starts_on: null,
       due_on: null,
       progress: 10,
@@ -135,6 +153,10 @@ describe("React app", () => {
     expect(await screen.findByRole("heading", { name: "Cloudflare Native MVP" })).toBeTruthy();
     expect((await screen.findAllByText("Design React shell")).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByRole("combobox", { name: "Parent task" })).toBeTruthy();
+    expect(screen.getByPlaceholderText("Assignee")).toBeTruthy();
+    expect(screen.getAllByText("Local User").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("#react")).toBeTruthy();
+    expect(screen.getByPlaceholderText("Category")).toBeTruthy();
     expect(screen.getByText("Demo Workspace")).toBeTruthy();
     expect(screen.getByText("Overview")).toBeTruthy();
   });

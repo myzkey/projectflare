@@ -782,7 +782,20 @@ async function listWikiRevisions(env: Env, pageId: string) {
 }
 
 async function createTask(request: Request, env: Env, projectId: string) {
-  const body = await request.json<Partial<Task> & { dueDate?: string }>();
+  const body = await request.json<
+    Partial<Task> & {
+      dueDate?: string;
+      category_name?: string;
+      milestone_name?: string;
+      milestone_due_on?: string;
+      assignee_name?: string;
+      tags?: string | string[];
+    }
+  >();
+  const categoryId = body.category_id || (await resolveTaskCategoryId(env, projectId, body.category_name));
+  const milestoneId =
+    body.milestone_id || (await resolveTaskMilestoneId(env, projectId, body.milestone_name, body.milestone_due_on));
+  const assigneeUserId = body.assignee_user_id || (await resolveTaskAssigneeId(env, body.assignee_name));
   const task = await createProjectTaskUseCase(
     {
       projectId,
@@ -790,11 +803,14 @@ async function createTask(request: Request, env: Env, projectId: string) {
       description: body.description,
       status: body.status,
       priority: body.priority,
-      assigneeUserId: body.assignee_user_id,
+      assigneeUserId,
       startsOn: body.starts_on,
       dueOn: body.due_on || body.dueDate,
       progress: body.progress,
       parentTaskId: body.parent_task_id,
+      categoryId,
+      milestoneId,
+      tags: body.tags,
       source: body.source,
       externalUrl: body.external_url,
       githubIssueUrl: body.github_issue_url,
@@ -822,21 +838,28 @@ async function createTask(request: Request, env: Env, projectId: string) {
 }
 
 async function updateTask(request: Request, env: Env, taskId: string) {
-  const body = await request.json<Partial<Task>>();
+  const body = await request.json<Partial<Task> & { assignee_name?: string; tags?: string | string[] }>();
   const allowedStatus = body.status && body.status in taskStatusLabels ? body.status : undefined;
   const progress =
     typeof body.progress === "number" ? Math.min(100, Math.max(0, Math.round(body.progress))) : undefined;
 
   if (!env.DB) return { id: taskId, status: allowedStatus, progress };
 
+  const assigneeUserId = Object.hasOwn(body, "assignee_name")
+    ? await resolveTaskAssigneeId(env, body.assignee_name)
+    : body.assignee_user_id;
   const patch = {
     title: body.title,
     description: body.description,
     status: body.status,
     priority: body.priority,
+    ...(Object.hasOwn(body, "assignee_user_id") || Object.hasOwn(body, "assignee_name") ? { assigneeUserId } : {}),
     startsOn: body.starts_on,
     dueOn: body.due_on,
     progress: body.progress,
+    ...(Object.hasOwn(body, "category_id") ? { categoryId: body.category_id } : {}),
+    ...(Object.hasOwn(body, "milestone_id") ? { milestoneId: body.milestone_id } : {}),
+    ...(Object.hasOwn(body, "tags") ? { tags: body.tags } : {}),
     ...(Object.hasOwn(body, "parent_task_id") ? { parentTaskId: body.parent_task_id } : {}),
   };
 
@@ -1018,6 +1041,65 @@ async function processGitHubQueueMessage(env: Env, message: GitHubQueueMessage) 
   );
 }
 
+async function resolveTaskCategoryId(
+  env: Env,
+  projectId: string,
+  name: string | null | undefined,
+): Promise<string | null> {
+  const normalized = name?.trim();
+  if (!normalized || !env.DB) return null;
+
+  const existing = await env.DB.prepare("SELECT id FROM task_categories WHERE project_id = ? AND name = ?")
+    .bind(projectId, normalized)
+    .first<{ id: string }>();
+  if (existing) return existing.id;
+
+  const id = crypto.randomUUID();
+  await env.DB.prepare("INSERT INTO task_categories (id, project_id, name) VALUES (?, ?, ?)")
+    .bind(id, projectId, normalized)
+    .run();
+  return id;
+}
+
+async function resolveTaskMilestoneId(
+  env: Env,
+  projectId: string,
+  name: string | null | undefined,
+  dueOn: string | null | undefined,
+): Promise<string | null> {
+  const normalized = name?.trim();
+  if (!normalized || !env.DB) return null;
+
+  const existing = await env.DB.prepare("SELECT id FROM task_milestones WHERE project_id = ? AND name = ?")
+    .bind(projectId, normalized)
+    .first<{ id: string }>();
+  if (existing) return existing.id;
+
+  const id = crypto.randomUUID();
+  await env.DB.prepare("INSERT INTO task_milestones (id, project_id, name, due_on) VALUES (?, ?, ?, ?)")
+    .bind(id, projectId, normalized, dueOn || null)
+    .run();
+  return id;
+}
+
+async function resolveTaskAssigneeId(env: Env, nameOrEmail: string | null | undefined): Promise<string | null> {
+  const normalized = nameOrEmail?.trim();
+  if (!normalized || !env.DB) return null;
+
+  const existing = await env.DB.prepare(
+    "SELECT id FROM users WHERE email = ? OR name = ? ORDER BY created_at ASC LIMIT 1",
+  )
+    .bind(normalized, normalized)
+    .first<{ id: string }>();
+  if (existing) return existing.id;
+
+  const email = normalized.includes("@") ? normalized : `${slugify(normalized)}@projectflare.local`;
+  const name = normalized.includes("@") ? normalized.split("@")[0] : normalized;
+  const id = stableId("usr", email);
+  await env.DB.prepare("INSERT OR IGNORE INTO users (id, email, name) VALUES (?, ?, ?)").bind(id, email, name).run();
+  return id;
+}
+
 async function notifyProject(env: Env, projectId: string, input: { title: string; body: string; source: string }) {
   if (!env.DB) return;
 
@@ -1170,8 +1252,16 @@ function demoTasks(): Task[] {
       description: "Model the core project OS entities.",
       status: "done",
       priority: "high",
-      assignee_user_id: null,
+      assignee_user_id: "usr_engineer",
+      assignee_name: "Platform Engineer",
       parent_task_id: null,
+      category_id: "cat_platform",
+      category_name: "Platform",
+      category_color: "#2563eb",
+      milestone_id: "ms_mvp",
+      milestone_name: "MVP",
+      milestone_due_on: "2026-07-15",
+      tags: ["schema", "cloudflare"],
       starts_on: "2026-06-01",
       due_on: "2026-06-05",
       progress: 100,
@@ -1189,8 +1279,16 @@ function demoTasks(): Task[] {
       description: "Dense scanning surface for task and schedule work.",
       status: "in_progress",
       priority: "high",
-      assignee_user_id: null,
+      assignee_user_id: "usr_pm",
+      assignee_name: "Project Manager",
       parent_task_id: "tsk_schema",
+      category_id: "cat_product",
+      category_name: "Product",
+      category_color: "#16a34a",
+      milestone_id: "ms_mvp",
+      milestone_name: "MVP",
+      milestone_due_on: "2026-07-15",
+      tags: ["ui", "react"],
       starts_on: "2026-06-04",
       due_on: "2026-06-20",
       progress: 55,
@@ -1208,8 +1306,16 @@ function demoTasks(): Task[] {
       description: "Turn JSON payloads into triage tasks.",
       status: "todo",
       priority: "medium",
-      assignee_user_id: null,
+      assignee_user_id: "usr_engineer",
+      assignee_name: "Platform Engineer",
       parent_task_id: "tsk_ui",
+      category_id: "cat_integrations",
+      category_name: "Integrations",
+      category_color: "#9333ea",
+      milestone_id: "ms_integrations",
+      milestone_name: "Integrations",
+      milestone_due_on: "2026-07-01",
+      tags: ["webhook", "automation"],
       starts_on: "2026-06-18",
       due_on: "2026-06-28",
       progress: 10,

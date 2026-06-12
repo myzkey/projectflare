@@ -33,7 +33,16 @@ export type Task = {
   description: string | null;
   status: TaskStatus;
   priority: TaskPriority;
+  assignee_user_id: string | null;
+  assignee_name?: string | null;
   parent_task_id: string | null;
+  category_id: string | null;
+  category_name?: string | null;
+  category_color?: string | null;
+  milestone_id: string | null;
+  milestone_name?: string | null;
+  milestone_due_on?: string | null;
+  tags: string[];
   starts_on: string | null;
   due_on: string | null;
   progress: number;

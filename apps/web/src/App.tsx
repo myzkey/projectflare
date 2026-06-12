@@ -513,6 +513,9 @@ function Overview(props: {
   locale: Locale;
 }) {
   const visibleTasks = useMemo(() => flattenTasks(props.tasks), [props.tasks]);
+  const categoryNames = useMemo(() => uniqueTaskValues(props.tasks, "category_name"), [props.tasks]);
+  const milestoneNames = useMemo(() => uniqueTaskValues(props.tasks, "milestone_name"), [props.tasks]);
+  const assigneeNames = useMemo(() => uniqueTaskValues(props.tasks, "assignee_name"), [props.tasks]);
 
   return (
     <section className="dashboard-grid">
@@ -543,6 +546,7 @@ function Overview(props: {
               <button type="button" className="task-name" onClick={() => props.onSelectTask(task.id)}>
                 <strong>{task.title}</strong>
                 <span>{task.description || props.messages.overview.noDescription}</span>
+                <TaskChips task={task} />
               </button>
               <select
                 defaultValue={task.status}
@@ -581,6 +585,18 @@ function Overview(props: {
         <form className="form-grid" onSubmit={(event) => void props.onCreateTask(event)}>
           <input name="title" placeholder={props.messages.overview.taskTitle} required />
           <textarea name="description" placeholder={props.messages.overview.description} />
+          <input name="category_name" list="task-categories" placeholder={props.messages.overview.category} />
+          <datalist id="task-categories">
+            {categoryNames.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+          <input name="assignee_name" list="task-assignees" placeholder={props.messages.overview.assignee} />
+          <datalist id="task-assignees">
+            {assigneeNames.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
           <select name="parent_task_id" aria-label={props.messages.overview.parentTask} defaultValue="">
             <option value="">{props.messages.overview.rootTask}</option>
             {visibleTasks
@@ -592,6 +608,16 @@ function Overview(props: {
                 </option>
               ))}
           </select>
+          <input name="tags" placeholder={props.messages.overview.tags} />
+          <div className="two-col">
+            <input name="milestone_name" list="task-milestones" placeholder={props.messages.overview.milestone} />
+            <input name="milestone_due_on" type="date" aria-label={props.messages.overview.milestoneDue} />
+          </div>
+          <datalist id="task-milestones">
+            {milestoneNames.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
           <div className="two-col">
             <select name="priority" defaultValue="medium">
               {priorities.map((priority) => (
@@ -645,6 +671,29 @@ function Overview(props: {
       </section>
     </section>
   );
+}
+
+function TaskChips({ task }: { task: Task }) {
+  const chips = [
+    task.assignee_name,
+    task.category_name,
+    task.milestone_name,
+    ...task.tags.map((tag) => `#${tag}`),
+  ].filter(Boolean);
+
+  if (!chips.length) return null;
+
+  return (
+    <span className="task-chips">
+      {chips.map((chip) => (
+        <small key={chip}>{chip}</small>
+      ))}
+    </span>
+  );
+}
+
+function uniqueTaskValues(tasks: Task[], key: "assignee_name" | "category_name" | "milestone_name"): string[] {
+  return [...new Set(tasks.map((task) => task[key]?.trim()).filter((value): value is string => Boolean(value)))];
 }
 
 function flattenTasks(tasks: Task[]): Array<{ task: Task; depth: number }> {

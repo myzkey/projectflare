@@ -1,5 +1,12 @@
 import { ApplicationError } from "../../domain/errors";
-import { createTask, normalizePriority, type Task, type TaskStatus, taskStatusLabels } from "../../domain/task";
+import {
+  createTask,
+  normalizePriority,
+  normalizeTags,
+  type Task,
+  type TaskStatus,
+  taskStatusLabels,
+} from "../../domain/task";
 import type { TaskCreateInput, TaskUpdateInput, TaskUseCasePorts } from "../../ports/tasks";
 
 const MAX_TASK_DEPTH = 3;
@@ -32,6 +39,9 @@ export async function createProjectTaskUseCase(input: TaskCreateInput, ports: Ta
     dueOn: input.dueOn,
     progress: input.progress,
     parentTaskId,
+    categoryId: normalizeOptionalId(input.categoryId),
+    milestoneId: normalizeOptionalId(input.milestoneId),
+    tags: input.tags,
     source: input.source,
     externalUrl: input.externalUrl,
     githubIssueUrl: input.githubIssueUrl,
@@ -52,7 +62,11 @@ export async function updateTaskUseCase(
   if (!existing) throw new ApplicationError("task_not_found", 404);
 
   const hasParentUpdate = Object.hasOwn(input, "parentTaskId");
+  const hasAssigneeUpdate = Object.hasOwn(input, "assigneeUserId");
   const parentTaskId = hasParentUpdate ? normalizeParentTaskId(input.parentTaskId) : existing.parent_task_id;
+  const hasCategoryUpdate = Object.hasOwn(input, "categoryId");
+  const hasMilestoneUpdate = Object.hasOwn(input, "milestoneId");
+  const hasTagsUpdate = Object.hasOwn(input, "tags");
   if (hasParentUpdate) {
     const projectTasks = await ports.tasks.listByProjectId(existing.project_id);
     validateTaskParent({
@@ -68,10 +82,14 @@ export async function updateTaskUseCase(
     description: input.description ?? existing.description,
     status: normalizeStatus(input.status) ?? existing.status,
     priority: input.priority ? normalizePriority(input.priority) : existing.priority,
+    assignee_user_id: hasAssigneeUpdate ? normalizeOptionalId(input.assigneeUserId) : existing.assignee_user_id,
     starts_on: input.startsOn ?? existing.starts_on,
     due_on: input.dueOn ?? existing.due_on,
     progress: clampProgress(input.progress ?? existing.progress),
     parent_task_id: parentTaskId,
+    category_id: hasCategoryUpdate ? normalizeOptionalId(input.categoryId) : existing.category_id,
+    milestone_id: hasMilestoneUpdate ? normalizeOptionalId(input.milestoneId) : existing.milestone_id,
+    tags: hasTagsUpdate ? normalizeTags(input.tags) : existing.tags,
   });
 
   const updated = await ports.tasks.findById(taskId);
@@ -88,6 +106,10 @@ function clampProgress(value: number): number {
 }
 
 function normalizeParentTaskId(value: string | null | undefined): string | null {
+  return value?.trim() || null;
+}
+
+function normalizeOptionalId(value: string | null | undefined): string | null {
   return value?.trim() || null;
 }
 

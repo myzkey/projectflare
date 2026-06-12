@@ -11,6 +11,9 @@ export type TaskCreateInput = {
   dueOn?: string | null;
   progress?: number | null;
   parentTaskId?: string | null;
+  categoryId?: string | null;
+  milestoneId?: string | null;
+  tags?: unknown;
   source?: string | null;
   externalUrl?: string | null;
   githubIssueUrl?: string | null;
@@ -22,10 +25,14 @@ export type TaskUpdateInput = {
   description?: string | null;
   status?: string | null;
   priority?: unknown;
+  assigneeUserId?: string | null;
   startsOn?: string | null;
   dueOn?: string | null;
   progress?: number | null;
   parentTaskId?: string | null;
+  categoryId?: string | null;
+  milestoneId?: string | null;
+  tags?: unknown;
 };
 
 export type TaskUpdatePatch = {
@@ -33,10 +40,14 @@ export type TaskUpdatePatch = {
   description: string | null;
   status: Task["status"];
   priority: Task["priority"];
+  assignee_user_id: string | null;
   starts_on: string | null;
   due_on: string | null;
   progress: number;
   parent_task_id: string | null;
+  category_id: string | null;
+  milestone_id: string | null;
+  tags: string[];
 };
 
 export type TaskRepository = {

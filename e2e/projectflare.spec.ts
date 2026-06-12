@@ -17,10 +17,17 @@ test("creates a task and adds a comment", async ({ page }) => {
 
   await page.getByPlaceholder("Task title").fill(taskTitle);
   await page.getByPlaceholder("Description", { exact: true }).fill("Created by Playwright");
+  await page.getByPlaceholder("Assignee").fill("E2E Owner");
+  await page.getByPlaceholder("Category").fill("QA");
+  await page.getByPlaceholder("Tags").fill("playwright, smoke");
+  await page.getByPlaceholder("Milestone").fill("E2E Milestone");
   await page.getByRole("button", { name: "Add task" }).click();
 
   const taskRow = page.locator(".task-row").filter({ hasText: taskTitle });
   await expect(taskRow).toBeVisible();
+  await expect(taskRow).toContainText("E2E Owner");
+  await expect(taskRow).toContainText("#playwright");
+  await expect(taskRow).toContainText("E2E Milestone");
 
   await page.getByPlaceholder("Task title").fill(childTitle);
   await page.getByLabel("Parent task").selectOption({ label: taskTitle });
@@ -59,7 +66,7 @@ test("updates task status and saves wiki content", async ({ page }) => {
 test("creates a generic webhook endpoint from integrations", async ({ page }) => {
   const endpointName = `E2E intake ${Date.now()}`;
 
-  await page.getByRole("button", { name: "Integrations" }).click();
+  await page.getByRole("button", { name: "Integrations", exact: true }).click();
   await page.getByPlaceholder("Endpoint name").fill(endpointName);
   await page.getByPlaceholder("source").fill("playwright");
   await page.getByRole("button", { name: "Create endpoint" }).click();

@@ -42,6 +42,9 @@ describe("task use cases", () => {
         priority: "urgent",
         progress: 142,
         dueOn: "2026-07-01",
+        categoryId: "cat_delivery",
+        milestoneId: "ms_launch",
+        tags: " launch, qa, launch ",
       },
       ports,
     );
@@ -54,6 +57,9 @@ describe("task use cases", () => {
         priority: "urgent",
         progress: 100,
         due_on: "2026-07-01",
+        category_id: "cat_delivery",
+        milestone_id: "ms_launch",
+        tags: ["launch", "qa"],
       }),
     );
     expect(tasks.get("task_new")).toEqual(task);
@@ -69,6 +75,9 @@ describe("task use cases", () => {
       priority: "medium",
       assignee_user_id: null,
       parent_task_id: null,
+      category_id: null,
+      milestone_id: null,
+      tags: [],
       starts_on: null,
       due_on: null,
       progress: 0,
@@ -180,6 +189,31 @@ describe("task use cases", () => {
 
     expect(updated.parent_task_id).toBeNull();
   });
+
+  it("updates taxonomy metadata independently from task hierarchy", async () => {
+    const existing = taskFixture({ id: "task_1", project_id: "project_1" });
+    const { ports } = createPorts([existing]);
+
+    const updated = await updateTaskUseCase(
+      "task_1",
+      {
+        assigneeUserId: "usr_owner",
+        categoryId: "cat_product",
+        milestoneId: "ms_beta",
+        tags: ["frontend", "frontend", "qa"],
+      },
+      ports,
+    );
+
+    expect(updated).toEqual(
+      expect.objectContaining({
+        category_id: "cat_product",
+        assignee_user_id: "usr_owner",
+        milestone_id: "ms_beta",
+        tags: ["frontend", "qa"],
+      }),
+    );
+  });
 });
 
 function taskFixture(overrides: Partial<Task> = {}): Task {
@@ -192,6 +226,9 @@ function taskFixture(overrides: Partial<Task> = {}): Task {
     priority: "medium",
     assignee_user_id: null,
     parent_task_id: null,
+    category_id: null,
+    milestone_id: null,
+    tags: [],
     starts_on: null,
     due_on: null,
     progress: 0,
