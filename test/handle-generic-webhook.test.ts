@@ -144,4 +144,88 @@ describe("handleGenericWebhookUseCase", () => {
     );
     expect(ports.notifications.notifyProject).not.toHaveBeenCalled();
   });
+
+  it("rejects disabled endpoints before token verification", async () => {
+    const endpoint: WebhookEndpointRecord = {
+      id: "endpoint_disabled",
+      project_id: "project_1",
+      name: "Disabled",
+      secret_hash: "hash",
+      mapping_json: null,
+      enabled: 0,
+    };
+    const { ports, tasks, events } = createPorts(endpoint);
+
+    await expect(
+      handleGenericWebhookUseCase(
+        {
+          endpointOrProjectId: "endpoint_disabled",
+          token: "secret-token",
+          payload: { title: "Should not create" },
+        },
+        ports,
+      ),
+    ).rejects.toEqual(new ApplicationError("webhook_endpoint_disabled", 403));
+
+    expect(ports.tokens.verify).not.toHaveBeenCalled();
+    expect(tasks).toHaveLength(0);
+    expect(events).toHaveLength(0);
+  });
+
+  it("falls back to safe mapping and untitled task defaults", async () => {
+    const endpoint: WebhookEndpointRecord = {
+      id: "endpoint_bad_mapping",
+      project_id: "project_1",
+      name: "Bad mapping",
+      secret_hash: "hash",
+      mapping_json: "{not-json",
+      enabled: 1,
+    };
+    const { ports, tasks } = createPorts(endpoint);
+
+    await handleGenericWebhookUseCase(
+      {
+        endpointOrProjectId: "endpoint_bad_mapping",
+        token: "secret-token",
+        payload: {
+          priority: "not-a-priority",
+          external_url: "https://example.com/ticket/1",
+        },
+      },
+      ports,
+    );
+
+    expect(tasks).toContainEqual(
+      expect.objectContaining({
+        title: "Untitled webhook task",
+        priority: "medium",
+        source: "generic_webhook",
+        external_url: "https://example.com/ticket/1",
+      }),
+    );
+  });
+
+  it("does not create immediate notifications when queue accepts the event", async () => {
+    const endpoint: WebhookEndpointRecord = {
+      id: "endpoint_queued",
+      project_id: "project_1",
+      name: "Queued",
+      secret_hash: "hash",
+      mapping_json: null,
+      enabled: 1,
+    };
+    const { ports, queueMessages, notifications } = createPorts(endpoint, { queue: true });
+
+    await handleGenericWebhookUseCase(
+      {
+        endpointOrProjectId: "endpoint_queued",
+        token: "secret-token",
+        payload: { title: "Queued task" },
+      },
+      ports,
+    );
+
+    expect(queueMessages).toContainEqual(expect.objectContaining({ type: "generic.task.created" }));
+    expect(notifications).toHaveLength(0);
+  });
 });

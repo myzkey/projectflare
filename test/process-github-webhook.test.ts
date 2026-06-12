@@ -141,4 +141,123 @@ describe("processGitHubWebhookUseCase", () => {
     );
     expect(notifications).toContainEqual(expect.objectContaining({ title: "GitHub comment synced" }));
   });
+
+  it("updates an existing issue task and marks closed issues done", async () => {
+    const { ports, updatedTasks, notifications } = createPorts({
+      task: { id: "task_1", project_id: "project_1", title: "Old title" },
+    });
+
+    await processGitHubWebhookUseCase(
+      {
+        eventId: "event_4",
+        eventName: "issues",
+        repositoryFullName: "owner/repo",
+        payload: {
+          issue: {
+            number: 15,
+            title: "Closed issue",
+            body: "Done now",
+            html_url: "https://github.com/owner/repo/issues/15",
+            state: "closed",
+          },
+        },
+      },
+      ports,
+    );
+
+    expect(updatedTasks).toContainEqual(
+      expect.objectContaining({
+        id: "task_1",
+        title: "Closed issue",
+        description: "Done now",
+        status: "done",
+      }),
+    );
+    expect(notifications).toContainEqual(expect.objectContaining({ title: "GitHub issue updated" }));
+  });
+
+  it("updates linked issue tasks from pull request bodies", async () => {
+    const { ports, updatedTasks, notifications } = createPorts({
+      task: { id: "task_1", project_id: "project_1", title: "Linked task" },
+    });
+
+    await processGitHubWebhookUseCase(
+      {
+        eventId: "event_5",
+        eventName: "pull_request",
+        repositoryFullName: "owner/repo",
+        payload: {
+          pull_request: {
+            body: "Closes https://github.com/owner/repo/issues/16",
+            state: "open",
+          },
+        },
+      },
+      ports,
+    );
+
+    expect(updatedTasks).toContainEqual(
+      expect.objectContaining({
+        issueUrl: "https://github.com/owner/repo/issues/16",
+        status: "review",
+        progress: 70,
+      }),
+    );
+    expect(notifications).toContainEqual(expect.objectContaining({ title: "GitHub PR updated linked task" }));
+  });
+
+  it("marks merged pull request linked tasks done", async () => {
+    const { ports, updatedTasks } = createPorts({
+      task: { id: "task_1", project_id: "project_1", title: "Merged task" },
+    });
+
+    await processGitHubWebhookUseCase(
+      {
+        eventId: "event_6",
+        eventName: "pull_request",
+        repositoryFullName: "owner/repo",
+        payload: {
+          pull_request: {
+            body: "Fixes https://github.com/owner/repo/issues/17",
+            state: "closed",
+            merged: true,
+          },
+        },
+      },
+      ports,
+    );
+
+    expect(updatedTasks).toContainEqual(
+      expect.objectContaining({
+        issueUrl: "https://github.com/owner/repo/issues/17",
+        status: "done",
+        progress: 100,
+      }),
+    );
+  });
+
+  it("ignores issue comments when no linked task exists", async () => {
+    const { ports, comments, notifications } = createPorts({ task: null });
+
+    await processGitHubWebhookUseCase(
+      {
+        eventId: "event_7",
+        eventName: "issue_comment",
+        repositoryFullName: "owner/repo",
+        payload: {
+          issue: {
+            html_url: "https://github.com/owner/repo/issues/18",
+          },
+          comment: {
+            body: "No local task",
+          },
+          sender: { login: "sender" },
+        },
+      },
+      ports,
+    );
+
+    expect(comments).toHaveLength(0);
+    expect(notifications).toHaveLength(0);
+  });
 });

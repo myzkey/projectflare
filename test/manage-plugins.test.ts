@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  dispatchPluginHookUseCase,
   installPluginUseCase,
   invokePluginRouteUseCase,
   listPluginCatalogUseCase,
+  setPluginEnabledUseCase,
 } from "../packages/core/src/application/usecases/manage-plugins";
 import type { InstalledPlugin, PluginDescriptor } from "../packages/core/src/domain/plugin";
 import type { PluginUseCasePorts } from "../packages/core/src/ports/plugins";
@@ -14,6 +16,7 @@ const descriptor: PluginDescriptor = {
   description: "Test plugin",
   entrypoint: "test:sample",
   capabilities: ["routes:register"],
+  hooks: ["task:created"],
   routes: [{ name: "status", method: "POST", description: "Status route" }],
 };
 
@@ -133,5 +136,110 @@ describe("plugin management use cases", () => {
         input: { ping: true },
       },
     });
+  });
+
+  it("rejects unknown plugins and invalid plugin ids", async () => {
+    const { ports } = createPorts();
+
+    await expect(
+      installPluginUseCase(
+        {
+          workspaceId: "ws_demo",
+          pluginId: "Missing Plugin!",
+          approvedCapabilities: ["routes:register"],
+        },
+        ports,
+      ),
+    ).rejects.toMatchObject({ code: "invalid_plugin_id" });
+
+    await expect(
+      installPluginUseCase(
+        {
+          workspaceId: "ws_demo",
+          pluginId: "missing-plugin",
+          approvedCapabilities: ["routes:register"],
+        },
+        ports,
+      ),
+    ).rejects.toMatchObject({ code: "plugin_not_found" });
+  });
+
+  it("rejects disabled plugin route invocations and missing routes", async () => {
+    const { ports } = createPorts();
+    await installPluginUseCase(
+      {
+        workspaceId: "ws_demo",
+        pluginId: "sample-plugin",
+        approvedCapabilities: ["routes:register"],
+      },
+      ports,
+    );
+
+    await expect(
+      invokePluginRouteUseCase(
+        {
+          workspaceId: "ws_demo",
+          pluginId: "sample-plugin",
+          routeName: "missing",
+          method: "POST",
+          input: {},
+        },
+        ports,
+      ),
+    ).rejects.toMatchObject({ code: "plugin_route_not_found" });
+
+    await setPluginEnabledUseCase("ws_demo", "sample-plugin", false, ports);
+
+    await expect(
+      invokePluginRouteUseCase(
+        {
+          workspaceId: "ws_demo",
+          pluginId: "sample-plugin",
+          routeName: "status",
+          method: "POST",
+          input: {},
+        },
+        ports,
+      ),
+    ).rejects.toMatchObject({ code: "plugin_not_enabled" });
+  });
+
+  it("dispatches hooks only to enabled plugins that registered the event", async () => {
+    const { ports, hookEvents } = createPorts();
+    await installPluginUseCase(
+      {
+        workspaceId: "ws_demo",
+        pluginId: "sample-plugin",
+        approvedCapabilities: ["routes:register"],
+      },
+      ports,
+    );
+
+    await dispatchPluginHookUseCase(
+      {
+        name: "task:created",
+        workspaceId: "ws_demo",
+        projectId: "project_1",
+        taskId: "task_1",
+        title: "Hooked task",
+        source: "app",
+      },
+      ports,
+    );
+
+    await setPluginEnabledUseCase("ws_demo", "sample-plugin", false, ports);
+    await dispatchPluginHookUseCase(
+      {
+        name: "task:created",
+        workspaceId: "ws_demo",
+        projectId: "project_1",
+        taskId: "task_2",
+        title: "Ignored task",
+        source: "app",
+      },
+      ports,
+    );
+
+    expect(hookEvents).toEqual(["plugin:install", "plugin:activate", "task:created", "plugin:deactivate"]);
   });
 });

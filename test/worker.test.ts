@@ -77,6 +77,20 @@ describe("ProjectFlare worker", () => {
     });
   });
 
+  it("returns plugin route errors for missing routes without D1", async () => {
+    const response = await worker.fetch(
+      new Request("http://localhost/api/workspaces/ws_demo/plugins/projectflare-demo-plugin/routes/missing", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ping: true }),
+      }),
+      env,
+    );
+
+    expect(response.status).toBe(404);
+    await expect(readJson(response)).resolves.toMatchObject({ error: "plugin_route_not_found" });
+  });
+
   it("creates a generic webhook task without D1", async () => {
     const response = await worker.fetch(
       new Request("http://localhost/api/webhooks/generic/prj_launch", {
@@ -158,6 +172,52 @@ describe("ProjectFlare worker", () => {
     expect(response.status).toBe(401);
     await expect(readJson(response)).resolves.toMatchObject({
       error: "invalid_github_signature",
+    });
+  });
+
+  it("accepts GitHub webhooks with a valid signature", async () => {
+    const secret = "secret";
+    const body = JSON.stringify({
+      action: "opened",
+      repository: {
+        full_name: "example/projectflare",
+        owner: { login: "example" },
+        name: "projectflare",
+      },
+      issue: {
+        number: 124,
+        title: "Signed webhook issue",
+        html_url: "https://github.com/example/projectflare/issues/124",
+        state: "open",
+      },
+    });
+    const key = await crypto.subtle.importKey(
+      "raw",
+      new TextEncoder().encode(secret),
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"],
+    );
+    const digest = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body));
+    const signature = `sha256=${[...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+
+    const response = await worker.fetch(
+      new Request("http://localhost/api/github/webhook", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-github-event": "issues",
+          "x-hub-signature-256": signature,
+        },
+        body,
+      }),
+      { GITHUB_WEBHOOK_SECRET: secret },
+    );
+
+    expect(response.status).toBe(202);
+    await expect(readJson(response)).resolves.toMatchObject({
+      accepted: true,
+      signatureVerified: true,
     });
   });
 });

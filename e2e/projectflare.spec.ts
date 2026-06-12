@@ -27,6 +27,27 @@ test("creates a task and adds a comment", async ({ page }) => {
   await expect(page.getByText(commentBody)).toBeVisible();
 });
 
+test("updates task status and saves wiki content", async ({ page }) => {
+  const stamp = Date.now();
+  const taskTitle = `E2E status ${stamp}`;
+  const wikiTitle = `E2E Wiki ${stamp}`;
+  const wikiSlug = `e2e-wiki-${stamp}`;
+
+  await page.getByPlaceholder("Task title").fill(taskTitle);
+  await page.getByRole("button", { name: "Add task" }).click();
+  const taskRow = page.locator(".task-row").filter({ hasText: taskTitle });
+  await taskRow.getByRole("combobox").first().selectOption("review");
+  await expect(taskRow.getByRole("combobox").first()).toHaveValue("review");
+
+  await page.getByRole("button", { name: "Wiki", exact: true }).click();
+  await page.getByPlaceholder("Page title").fill(wikiTitle);
+  await page.getByPlaceholder("slug").fill(wikiSlug);
+  await page.getByPlaceholder("Markdown body").fill("# E2E Wiki\n\nSaved by Playwright.");
+  await page.getByRole("button", { name: "Save page" }).click();
+
+  await expect(page.getByText(wikiTitle)).toBeVisible();
+});
+
 test("creates a generic webhook endpoint from integrations", async ({ page }) => {
   const endpointName = `E2E intake ${Date.now()}`;
 
@@ -49,6 +70,11 @@ test("shows plugins and invokes the sample plugin route", async ({ page }) => {
 
   await expect(page.locator(".route-console")).toContainText("projectflare-demo-plugin");
   await expect(page.locator(".route-console")).toContainText("prj_launch");
+
+  await page.getByRole("button", { name: "Disable" }).click();
+  await expect(page.getByRole("button", { name: "Enable" })).toBeVisible();
+  await page.getByRole("button", { name: "Enable" }).click();
+  await expect(page.getByRole("button", { name: "Disable" })).toBeVisible();
 });
 
 test("switches locale to Japanese and Arabic RTL", async ({ page }) => {
