@@ -104,6 +104,7 @@ export type Messages = {
     unreadCount: (count: number) => string;
     channelName: string;
     targetUrl: string;
+    slackWebhookUrl: string;
     addChannel: string;
     newToken: (token: string, endpoint: string) => string;
     hidden: string;
@@ -279,6 +280,7 @@ const en: Messages = {
     unreadCount: (count) => `${count} unread`,
     channelName: "Channel name",
     targetUrl: "target URL",
+    slackWebhookUrl: "Slack Incoming Webhook URL",
     addChannel: "Add channel",
     newToken: (token, endpoint) => `New token: ${token} / ${endpoint}`,
     hidden: "hidden",
@@ -960,6 +962,7 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       unreadCount: (count) => `${count} 件未読`,
       channelName: "チャンネル名",
       targetUrl: "送信先 URL",
+      slackWebhookUrl: "Slack Incoming Webhook URL",
       addChannel: "チャンネルを追加",
       newToken: (token, endpoint) => `新しい token: ${token} / ${endpoint}`,
       hidden: "非表示",

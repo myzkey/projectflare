@@ -833,6 +833,11 @@ async function createTask(request: Request, env: Env, projectId: string) {
       createPluginPorts(env),
     );
   }
+  await notifyProject(env, projectId, {
+    title: "Task created",
+    body: `${task.title} was created.`,
+    source: task.source || "app",
+  });
 
   return task;
 }
@@ -1126,13 +1131,7 @@ async function sendNotificationChannel(
   channel: NotificationChannel,
   input: { title: string; body: string; source: string },
 ) {
-  const payload = {
-    text: `${input.title}: ${input.body}`,
-    title: input.title,
-    body: input.body,
-    source: input.source,
-    projectflare: true,
-  };
+  const payload = notificationPayloadFor(channel, input);
 
   try {
     await fetch(channel.target_url, {
@@ -1143,6 +1142,48 @@ async function sendNotificationChannel(
   } catch (error) {
     console.warn("Notification channel delivery failed", channel.id, error);
   }
+}
+
+export function notificationPayloadFor(
+  channel: Pick<NotificationChannel, "channel_type">,
+  input: { title: string; body: string; source: string },
+) {
+  if (channel.channel_type === "slack") {
+    const text = `${input.title}: ${input.body}`;
+    return {
+      text,
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*${escapeSlackText(input.title)}*\n${escapeSlackText(input.body)}`,
+          },
+        },
+        {
+          type: "context",
+          elements: [
+            {
+              type: "mrkdwn",
+              text: `ProjectFlare / ${escapeSlackText(input.source)}`,
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  return {
+    text: `${input.title}: ${input.body}`,
+    title: input.title,
+    body: input.body,
+    source: input.source,
+    projectflare: true,
+  };
+}
+
+function escapeSlackText(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
 async function findProjectIdForGitHubRepository(env: Env, repositoryFullName: string): Promise<string | null> {

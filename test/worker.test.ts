@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import worker from "../packages/cloudflare/src";
+import { notificationPayloadFor } from "../packages/cloudflare/src/presentation/http/worker";
 
 const env = {};
 
@@ -218,6 +219,52 @@ describe("ProjectFlare worker", () => {
     await expect(readJson(response)).resolves.toMatchObject({
       accepted: true,
       signatureVerified: true,
+    });
+  });
+
+  it("formats Slack notification channel payloads", () => {
+    const payload = notificationPayloadFor(
+      { channel_type: "slack" },
+      {
+        title: "Task created",
+        body: "Ship <Phase 1> & notify everyone.",
+        source: "app",
+      },
+    );
+
+    expect(payload).toMatchObject({
+      text: "Task created: Ship <Phase 1> & notify everyone.",
+      blocks: [
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: "*Task created*\nShip &lt;Phase 1&gt; &amp; notify everyone.",
+          },
+        },
+        {
+          type: "context",
+        },
+      ],
+    });
+  });
+
+  it("keeps generic notification channel payloads backward compatible", () => {
+    const payload = notificationPayloadFor(
+      { channel_type: "webhook" },
+      {
+        title: "Task created",
+        body: "Ship Phase 1.",
+        source: "app",
+      },
+    );
+
+    expect(payload).toEqual({
+      text: "Task created: Ship Phase 1.",
+      title: "Task created",
+      body: "Ship Phase 1.",
+      source: "app",
+      projectflare: true,
     });
   });
 });

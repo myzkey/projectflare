@@ -969,12 +969,12 @@ function Integrations(props: {
         <form className="form-grid" onSubmit={(event) => void props.onCreateNotificationChannel(event)}>
           <input name="name" placeholder={props.messages.integrations.channelName} required />
           <div className="two-col">
-            <select name="channel_type" defaultValue="webhook">
-              <option value="webhook">webhook</option>
+            <select name="channel_type" defaultValue="slack">
               <option value="slack">slack</option>
+              <option value="webhook">webhook</option>
               <option value="lark">lark</option>
             </select>
-            <input name="target_url" placeholder={props.messages.integrations.targetUrl} required />
+            <input name="target_url" placeholder={props.messages.integrations.slackWebhookUrl} required />
           </div>
           <button type="submit">
             <Bell size={16} />

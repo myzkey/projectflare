@@ -157,6 +157,9 @@ describe("React app", () => {
     expect(screen.getAllByText("Local User").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("#react")).toBeTruthy();
     expect(screen.getByPlaceholderText("Category")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Integrations/ }));
+    expect(screen.getByPlaceholderText("Slack Incoming Webhook URL")).toBeTruthy();
+    expect(screen.getByDisplayValue("slack")).toBeTruthy();
     expect(screen.getByText("Demo Workspace")).toBeTruthy();
     expect(screen.getByText("Overview")).toBeTruthy();
   });

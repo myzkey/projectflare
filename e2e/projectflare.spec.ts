@@ -65,6 +65,7 @@ test("updates task status and saves wiki content", async ({ page }) => {
 
 test("creates a generic webhook endpoint from integrations", async ({ page }) => {
   const endpointName = `E2E intake ${Date.now()}`;
+  const channelName = `E2E Slack ${Date.now()}`;
 
   await page.getByRole("button", { name: "Integrations", exact: true }).click();
   await page.getByPlaceholder("Endpoint name").fill(endpointName);
@@ -73,6 +74,13 @@ test("creates a generic webhook endpoint from integrations", async ({ page }) =>
 
   await expect(page.getByText(endpointName)).toBeVisible();
   await expect(page.getByText(/New token:/)).toBeVisible();
+
+  await page.getByPlaceholder("Channel name").fill(channelName);
+  await page.getByPlaceholder("Slack Incoming Webhook URL").fill("https://hooks.slack.com/services/T000/B000/XXXX");
+  await page.getByRole("button", { name: "Add channel" }).click();
+
+  await expect(page.getByText(channelName)).toBeVisible();
+  await expect(page.locator(".event-list article").filter({ hasText: channelName })).toContainText("slack");
 });
 
 test("shows plugins and invokes the sample plugin route", async ({ page }) => {
