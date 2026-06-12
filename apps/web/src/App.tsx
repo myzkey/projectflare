@@ -8,10 +8,13 @@ import {
   Link2,
   Loader2,
   MessageSquare,
+  PlugZap,
   Plus,
+  Power,
   RadioTower,
   Save,
   Send,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
@@ -29,8 +32,10 @@ import type {
   AccessUser,
   GitHubEvent,
   GitHubRepository,
+  InstalledPlugin,
   Notification,
   NotificationChannel,
+  PluginDescriptor,
   Project,
   Task,
   TaskComment,
@@ -45,7 +50,7 @@ import type {
 
 const statuses: TaskStatus[] = ["todo", "in_progress", "review", "done", "archived"];
 const priorities: TaskPriority[] = ["low", "medium", "high", "urgent"];
-const tabs = ["overview", "plan", "wiki", "integrations"] as const;
+const tabs = ["overview", "plan", "wiki", "integrations", "plugins"] as const;
 type Tab = (typeof tabs)[number];
 
 export function App() {
@@ -64,6 +69,9 @@ export function App() {
   const [webhookEndpoints, setWebhookEndpoints] = useState<WebhookEndpoint[]>([]);
   const [notificationChannels, setNotificationChannels] = useState<NotificationChannel[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [pluginCatalog, setPluginCatalog] = useState<PluginDescriptor[]>([]);
+  const [installedPlugins, setInstalledPlugins] = useState<InstalledPlugin[]>([]);
+  const [pluginRouteResult, setPluginRouteResult] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedWikiPageId, setSelectedWikiPageId] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
@@ -136,8 +144,14 @@ export function App() {
       setMe(currentUser);
       setWorkspace(firstWorkspace);
       if (firstWorkspace) {
-        const nextProjects = await api.projects(firstWorkspace.id);
+        const [nextProjects, nextCatalog, nextInstalledPlugins] = await Promise.all([
+          api.projects(firstWorkspace.id),
+          api.pluginCatalog(),
+          api.installedPlugins(firstWorkspace.id),
+        ]);
         setProjects(nextProjects);
+        setPluginCatalog(nextCatalog);
+        setInstalledPlugins(nextInstalledPlugins);
         const firstProject = nextProjects[0] ?? null;
         setProject(firstProject);
         if (firstProject) await refreshProject(firstWorkspace.id, firstProject);
@@ -182,6 +196,7 @@ export function App() {
     setSelectedWikiPageId((current) =>
       current && nextWiki.some((page) => page.id === current) ? current : (nextWiki[0]?.id ?? null),
     );
+    setInstalledPlugins(await api.installedPlugins(workspaceId));
   }
 
   async function selectProject(projectId: string) {
@@ -299,6 +314,36 @@ export function App() {
       await api.createNotificationChannel(project.id, body);
       form.reset();
       await refreshProject();
+    });
+  }
+
+  async function installPlugin(plugin: PluginDescriptor) {
+    if (!workspace) return;
+    await run(async () => {
+      await api.installPlugin(workspace.id, {
+        plugin_id: plugin.id,
+        approved_capabilities: plugin.capabilities,
+      });
+      setInstalledPlugins(await api.installedPlugins(workspace.id));
+    });
+  }
+
+  async function setPluginEnabled(plugin: InstalledPlugin, enabled: boolean) {
+    if (!workspace) return;
+    await run(async () => {
+      await api.setPluginEnabled(workspace.id, plugin.plugin_id, enabled);
+      setInstalledPlugins(await api.installedPlugins(workspace.id));
+    });
+  }
+
+  async function invokePluginStatus(plugin: InstalledPlugin) {
+    if (!workspace) return;
+    await run(async () => {
+      const result = await api.invokePluginRoute(workspace.id, plugin.plugin_id, "status", {
+        projectId: project?.id ?? null,
+        requestedAt: new Date().toISOString(),
+      });
+      setPluginRouteResult(JSON.stringify(result, null, 2));
     });
   }
 
@@ -433,6 +478,18 @@ export function App() {
             onCreateGitHubRepository={createGitHubRepository}
             onCreateWebhookEndpoint={createWebhookEndpoint}
             onCreateNotificationChannel={createNotificationChannel}
+            messages={messages}
+            locale={locale}
+          />
+        )}
+        {tab === "plugins" && workspace && (
+          <Plugins
+            catalog={pluginCatalog}
+            installed={installedPlugins}
+            routeResult={pluginRouteResult}
+            onInstall={installPlugin}
+            onSetEnabled={setPluginEnabled}
+            onInvokeStatus={invokePluginStatus}
             messages={messages}
             locale={locale}
           />
@@ -855,6 +912,126 @@ function Integrations(props: {
   );
 }
 
+function Plugins(props: {
+  catalog: PluginDescriptor[];
+  installed: InstalledPlugin[];
+  routeResult: string | null;
+  onInstall(plugin: PluginDescriptor): Promise<void>;
+  onSetEnabled(plugin: InstalledPlugin, enabled: boolean): Promise<void>;
+  onInvokeStatus(plugin: InstalledPlugin): Promise<void>;
+  messages: Messages;
+  locale: Locale;
+}) {
+  const installedById = new Map(props.installed.map((plugin) => [plugin.plugin_id, plugin]));
+  const enabledCount = props.installed.filter((plugin) => plugin.enabled).length;
+
+  return (
+    <section className="plugins-layout">
+      <section className="panel plugin-catalog">
+        <PanelTitle
+          icon={<PlugZap size={18} />}
+          title={props.messages.plugins.catalog}
+          meta={props.messages.plugins.availableCount(props.catalog.length)}
+        />
+        <div className="plugin-list">
+          {props.catalog.map((plugin) => {
+            const installed = installedById.get(plugin.id);
+            return (
+              <article key={plugin.id} className={installed?.enabled ? "plugin-card enabled" : "plugin-card"}>
+                <div className="plugin-card-main">
+                  <div>
+                    <strong>{plugin.name}</strong>
+                    <small>
+                      {plugin.id} / v{plugin.version}
+                    </small>
+                  </div>
+                  <span className={installed ? "plugin-pill installed" : "plugin-pill"}>
+                    {installed ? props.messages.plugins.installed : props.messages.plugins.notInstalled}
+                  </span>
+                </div>
+                <p>{plugin.description}</p>
+                <CapabilityRail capabilities={plugin.capabilities} messages={props.messages} />
+                <div className="plugin-meta-grid">
+                  <span>
+                    <ShieldCheck size={15} />
+                    {props.messages.plugins.hookCount(plugin.hooks?.length ?? 0)}
+                  </span>
+                  <span>
+                    <RadioTower size={15} />
+                    {props.messages.plugins.routeCount(plugin.routes?.length ?? 0)}
+                  </span>
+                  <span>
+                    <Save size={15} />
+                    {props.messages.plugins.storageCount(plugin.storage?.length ?? 0)}
+                  </span>
+                </div>
+                <div className="plugin-actions">
+                  {installed ? (
+                    <>
+                      <button
+                        type="button"
+                        className={installed.enabled ? "danger-ghost" : ""}
+                        onClick={() => void props.onSetEnabled(installed, !installed.enabled)}
+                      >
+                        <Power size={16} />
+                        {installed.enabled ? props.messages.plugins.disable : props.messages.plugins.enable}
+                      </button>
+                      {plugin.routes?.some((route) => route.name === "status" && route.method === "POST") && (
+                        <button type="button" onClick={() => void props.onInvokeStatus(installed)}>
+                          <RadioTower size={16} />
+                          {props.messages.plugins.runStatus}
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => void props.onInstall(plugin)}>
+                      <Plus size={16} />
+                      {props.messages.plugins.install}
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <aside className="panel plugin-console">
+        <PanelTitle
+          icon={<ShieldCheck size={18} />}
+          title={props.messages.plugins.installedPlugins}
+          meta={props.messages.plugins.enabledCount(enabledCount)}
+        />
+        <div className="event-list">
+          {props.installed.map((plugin) => (
+            <article key={plugin.plugin_id}>
+              <strong>{plugin.descriptor?.name ?? plugin.plugin_id}</strong>
+              <small>
+                {plugin.enabled ? props.messages.plugins.enabled : props.messages.plugins.disabled} /{" "}
+                {formatDate(plugin.updated_at, props.locale)}
+              </small>
+            </article>
+          ))}
+        </div>
+        <div className="route-console">
+          <small>{props.messages.plugins.routeResult}</small>
+          <pre>{props.routeResult ?? props.messages.plugins.noRouteResult}</pre>
+        </div>
+      </aside>
+    </section>
+  );
+}
+
+function CapabilityRail(props: { capabilities: string[]; messages: Messages }) {
+  return (
+    <ul className="capability-rail" aria-label={props.messages.plugins.capabilities}>
+      {props.capabilities.map((capability) => (
+        <li key={capability}>{capability}</li>
+      ))}
+    </ul>
+  );
+}
+
 function Metric(props: { label: string; value: number; tone?: "hot" }) {
   return (
     <article className={props.tone === "hot" ? "metric hot" : "metric"}>
@@ -891,7 +1068,8 @@ function tabIcon(tab: Tab) {
   if (tab === "overview") return <LayoutDashboard size={17} />;
   if (tab === "plan") return <GitBranch size={17} />;
   if (tab === "wiki") return <BookOpenText size={17} />;
-  return <RadioTower size={17} />;
+  if (tab === "integrations") return <RadioTower size={17} />;
+  return <PlugZap size={17} />;
 }
 
 function timelineBounds(tasks: Task[]) {

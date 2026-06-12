@@ -32,6 +32,7 @@ Jira、Linear、Notion、Redmine、OpenProject の完全な置き換えを最初
 - React/Vite による密度高めのプロジェクト管理UI
 - `ar`、`de`、`en`、`es-419`、`es-ES`、`eu`、`fa`、`fr`、`id`、`ja`、`ko`、`nb`、`pl`、`pseudo`、`pt-BR`、`th`、`zh-CN`、`zh-TW` の18ロケール対応
 - アラビア語とペルシア語のRTL表示
+- EmDash を参考にした plugin foundation。manifest、capability、lifecycle/task hook、plugin route、plugin scoped KV/event table を持つ
 - Biome、Vitest、TypeScript typecheck、Conventional Commits
 
 ## アーキテクチャ
@@ -55,6 +56,19 @@ packages/core -> Cloudflare runtime に依存しない
 ```
 
 ビジネスルールは `packages/core` に置き、Cloudflare 固有の処理、D1 SQL、Queue連携、HTTP request/response は `packages/cloudflare` に分離しています。React app は HTTP API 経由で ProjectFlare を操作し、UI都合を domain package に持ち込まない方針です。
+
+## プラグインアーキテクチャ
+
+ProjectFlare には EmDash を参考にした最初のプラグイン基盤を入れています。
+
+- `PluginDescriptor` で id、version、entrypoint、capability、hook、route、storage collection を宣言
+- install 時に capability を承認し、workspace ごとの installed plugin として保存
+- `plugin:install`、`plugin:activate`、`plugin:deactivate` の lifecycle hook
+- `task:created` に反応できる task hook
+- `/api/workspaces/:workspaceId/plugins/:pluginId/routes/:routeName` で plugin route を呼び出し
+- installed plugin、plugin KV、plugin event は D1 table で workspace/plugin 単位に分離
+
+現時点では host runtime adapter で組み込み plugin を実行します。runtime は Clean Architecture の port として分離しているため、将来的には EmDash と同じ方向で Cloudflare Dynamic Workers による isolated execution と明示的な権限制御へ差し替えられる設計です。
 
 ## 実装済みAPI
 
@@ -80,6 +94,11 @@ packages/core -> Cloudflare runtime に依存しない
 - `GET /api/wiki/:pageId/revisions`
 - `GET /api/workspaces/:workspaceId/github/repositories`
 - `POST /api/workspaces/:workspaceId/github/repositories`
+- `GET /api/plugins/catalog`
+- `GET /api/workspaces/:workspaceId/plugins`
+- `POST /api/workspaces/:workspaceId/plugins`
+- `PATCH /api/workspaces/:workspaceId/plugins/:pluginId`
+- `POST /api/workspaces/:workspaceId/plugins/:pluginId/routes/:routeName`
 - `GET /api/projects/:projectId/github/events`
 - `POST /api/github/webhook`
 - `GET /api/projects/:projectId/webhook-endpoints`

@@ -448,7 +448,8 @@ button[type="submit"] {
 
 .split-view,
 .wiki-layout,
-.integrations-grid {
+.integrations-grid,
+.plugins-layout {
   display: grid;
   gap: 16px;
 }
@@ -528,6 +529,143 @@ button[type="submit"] {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.plugins-layout {
+  grid-template-columns: minmax(0, 1fr) 360px;
+  align-items: start;
+}
+
+.plugin-list {
+  display: grid;
+  gap: 12px;
+}
+
+.plugin-card {
+  border: 1px solid var(--line);
+  background: rgba(244, 247, 239, 0.62);
+  padding: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.plugin-card.enabled {
+  border-color: var(--moss);
+  box-shadow: 3px 3px 0 var(--moss);
+}
+
+.plugin-card-main,
+.plugin-actions,
+.plugin-meta-grid {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plugin-card-main {
+  justify-content: space-between;
+}
+
+.plugin-card-main strong {
+  display: block;
+  font-size: 19px;
+}
+
+.plugin-card-main small {
+  color: var(--muted);
+}
+
+.plugin-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.plugin-pill {
+  border: 1px solid var(--line);
+  background: var(--field);
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+
+.plugin-pill.installed {
+  border-color: var(--moss);
+  color: var(--moss);
+  background: rgba(53, 93, 69, 0.08);
+}
+
+.capability-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.capability-rail li {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 4px 7px;
+  font-size: 12px;
+  color: var(--moss);
+}
+
+.plugin-meta-grid {
+  flex-wrap: wrap;
+}
+
+.plugin-meta-grid span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.plugin-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.plugin-actions button {
+  min-height: 38px;
+  border: 1px solid var(--ink);
+  background: var(--ink);
+  color: white;
+  padding: 8px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.plugin-actions button.danger-ghost {
+  border-color: var(--coral);
+  background: transparent;
+  color: var(--coral);
+}
+
+.route-console {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.route-console small {
+  color: var(--muted);
+}
+
+.route-console pre {
+  min-height: 220px;
+  max-height: 420px;
+  overflow: auto;
+  margin: 0;
+  border: 1px solid var(--line);
+  background: #171814;
+  color: #f4f7ef;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 .empty {
   margin: 0;
   color: var(--muted);
@@ -544,13 +682,14 @@ button[type="submit"] {
   }
 
   .nav-tabs {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .dashboard-grid,
   .split-view,
   .wiki-layout,
-  .integrations-grid {
+  .integrations-grid,
+  .plugins-layout {
     grid-template-columns: 1fr;
   }
 }

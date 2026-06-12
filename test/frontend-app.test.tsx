@@ -19,6 +19,44 @@ const responses: Record<string, unknown> = {
       github_repository_url: null,
     },
   ],
+  "/api/plugins/catalog": [
+    {
+      id: "projectflare-demo-plugin",
+      name: "ProjectFlare Demo Plugin",
+      version: "0.1.0",
+      description: "A first-party sample plugin",
+      entrypoint: "builtin:projectflare-demo-plugin",
+      capabilities: ["routes:register", "hooks.lifecycle:register", "storage:kv"],
+      hooks: ["plugin:install"],
+      routes: [{ name: "status", method: "POST", description: "Status route" }],
+      storage: [{ name: "kv", indexes: ["key"] }],
+    },
+  ],
+  "/api/workspaces/ws_demo/plugins": [
+    {
+      workspace_id: "ws_demo",
+      plugin_id: "projectflare-demo-plugin",
+      version: "0.1.0",
+      enabled: 1,
+      capabilities_json: '["routes:register","hooks.lifecycle:register","storage:kv"]',
+      settings_json: null,
+      installed_at: "2026-06-12T00:00:00.000Z",
+      updated_at: "2026-06-12T00:00:00.000Z",
+      descriptor: {
+        id: "projectflare-demo-plugin",
+        name: "ProjectFlare Demo Plugin",
+        version: "0.1.0",
+        description: "A first-party sample plugin",
+        entrypoint: "builtin:projectflare-demo-plugin",
+        capabilities: ["routes:register", "hooks.lifecycle:register", "storage:kv"],
+      },
+    },
+  ],
+  "/api/workspaces/ws_demo/plugins/projectflare-demo-plugin/routes/status": {
+    plugin: { id: "projectflare-demo-plugin", enabled: true },
+    workspaceId: "ws_demo",
+    input: { projectId: "prj_1" },
+  },
   "/api/projects/prj_1/tasks": [
     {
       id: "tsk_1",
@@ -106,5 +144,19 @@ describe("React app", () => {
     expect(screen.getByText("نظرة عامة")).toBeTruthy();
     expect(document.documentElement.lang).toBe("ar");
     expect(document.documentElement.dir).toBe("rtl");
+  });
+
+  it("shows installed plugins and invokes a plugin route", async () => {
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Cloudflare Native MVP" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Plugins/ }));
+
+    expect(screen.getByText("Plugin Catalog")).toBeTruthy();
+    expect(screen.getAllByText("ProjectFlare Demo Plugin").length).toBeGreaterThan(0);
+
+    fireEvent.click(screen.getByRole("button", { name: /Run status/ }));
+
+    expect(await screen.findByText(/projectflare-demo-plugin/)).toBeTruthy();
   });
 });

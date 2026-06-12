@@ -34,6 +34,7 @@ ProjectFlare is not trying to replace Jira, Linear, Notion, Redmine, or OpenProj
 - React/Vite admin UI with a dense project command-center layout
 - Frontend localization for `ar`, `de`, `en`, `es-419`, `es-ES`, `eu`, `fa`, `fr`, `id`, `ja`, `ko`, `nb`, `pl`, `pseudo`, `pt-BR`, `th`, `zh-CN`, and `zh-TW`
 - RTL document direction for Arabic and Persian
+- EmDash-inspired plugin foundation with manifests, capabilities, lifecycle/task hooks, plugin routes, and plugin-scoped KV/event tables
 - Biome linting/formatting, Vitest coverage, TypeScript type checking, and Conventional Commits
 
 ## Architecture
@@ -57,6 +58,19 @@ packages/core -> no Cloudflare runtime dependency
 ```
 
 Core business rules live in `packages/core`. Cloudflare-specific code, D1 SQL, queue integration, and request/response handling live in `packages/cloudflare`. The React app talks to ProjectFlare through the HTTP API and keeps UI concerns out of the domain package.
+
+## Plugin Architecture
+
+ProjectFlare has a first plugin foundation inspired by EmDash:
+
+- `PluginDescriptor` declares id, version, entrypoint, capabilities, hooks, routes, and storage collections
+- capabilities are approved at install time and stored with the workspace installation
+- lifecycle hooks are available for `plugin:install`, `plugin:activate`, and `plugin:deactivate`
+- task hooks can react to `task:created`
+- plugin routes are invoked through `/api/workspaces/:workspaceId/plugins/:pluginId/routes/:routeName`
+- plugin data is scoped through D1 tables for installed plugins, plugin KV, and plugin events
+
+Current plugins run through a host runtime adapter. The Clean Architecture port is intentionally shaped so a future Cloudflare Dynamic Worker runner can replace the in-process runtime for third-party plugins, matching the EmDash security direction of isolated execution and explicit permissions.
 
 ## Implemented API
 
@@ -82,6 +96,11 @@ Core business rules live in `packages/core`. Cloudflare-specific code, D1 SQL, q
 - `GET /api/wiki/:pageId/revisions`
 - `GET /api/workspaces/:workspaceId/github/repositories`
 - `POST /api/workspaces/:workspaceId/github/repositories`
+- `GET /api/plugins/catalog`
+- `GET /api/workspaces/:workspaceId/plugins`
+- `POST /api/workspaces/:workspaceId/plugins`
+- `PATCH /api/workspaces/:workspaceId/plugins/:pluginId`
+- `POST /api/workspaces/:workspaceId/plugins/:pluginId/routes/:routeName`
 - `GET /api/projects/:projectId/github/events`
 - `POST /api/github/webhook`
 - `GET /api/projects/:projectId/webhook-endpoints`

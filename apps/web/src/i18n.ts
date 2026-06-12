@@ -33,7 +33,7 @@ export type Messages = {
   githubLinked: string;
   ready: string;
   dismiss: string;
-  tabs: Record<"overview" | "plan" | "wiki" | "integrations", string>;
+  tabs: Record<"overview" | "plan" | "wiki" | "integrations" | "plugins", string>;
   status: Record<TaskStatus, string>;
   priority: Record<TaskPriority, string>;
   metrics: {
@@ -100,6 +100,26 @@ export type Messages = {
     addChannel: string;
     newToken: (token: string, endpoint: string) => string;
     hidden: string;
+  };
+  plugins: {
+    catalog: string;
+    availableCount: (count: number) => string;
+    installedPlugins: string;
+    enabledCount: (count: number) => string;
+    installed: string;
+    notInstalled: string;
+    install: string;
+    enable: string;
+    disable: string;
+    enabled: string;
+    disabled: string;
+    runStatus: string;
+    routeResult: string;
+    noRouteResult: string;
+    capabilities: string;
+    hookCount: (count: number) => string;
+    routeCount: (count: number) => string;
+    storageCount: (count: number) => string;
   };
   language: {
     label: string;
@@ -169,6 +189,7 @@ const en: Messages = {
     plan: "Plan",
     wiki: "Wiki",
     integrations: "Integrations",
+    plugins: "Plugins",
   },
   status: {
     todo: "Todo",
@@ -247,6 +268,26 @@ const en: Messages = {
     addChannel: "Add channel",
     newToken: (token, endpoint) => `New token: ${token} / ${endpoint}`,
     hidden: "hidden",
+  },
+  plugins: {
+    catalog: "Plugin Catalog",
+    availableCount: (count) => `${count} available`,
+    installedPlugins: "Installed Plugins",
+    enabledCount: (count) => `${count} enabled`,
+    installed: "Installed",
+    notInstalled: "Not installed",
+    install: "Install",
+    enable: "Enable",
+    disable: "Disable",
+    enabled: "Enabled",
+    disabled: "Disabled",
+    runStatus: "Run status",
+    routeResult: "Route result",
+    noRouteResult: "Run a plugin route to inspect the response.",
+    capabilities: "Capabilities",
+    hookCount: (count) => `${count} hooks`,
+    routeCount: (count) => `${count} routes`,
+    storageCount: (count) => `${count} stores`,
   },
   language: {
     label: "Language",
@@ -843,7 +884,7 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
     githubLinked: "GitHub 連携済み",
     ready: "準備完了",
     dismiss: "閉じる",
-    tabs: { overview: "概要", plan: "計画", wiki: "Wiki", integrations: "連携" },
+    tabs: { overview: "概要", plan: "計画", wiki: "Wiki", integrations: "連携", plugins: "プラグイン" },
     status: { todo: "未着手", in_progress: "進行中", review: "レビュー", done: "完了", archived: "アーカイブ" },
     priority: { low: "低", medium: "中", high: "高", urgent: "緊急" },
     metrics: { open: "未完了", review: "レビュー", done: "完了", overdue: "期限超過" },
@@ -901,6 +942,26 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       addChannel: "チャンネルを追加",
       newToken: (token, endpoint) => `新しい token: ${token} / ${endpoint}`,
       hidden: "非表示",
+    },
+    plugins: {
+      catalog: "プラグインカタログ",
+      availableCount: (count) => `${count} 件利用可能`,
+      installedPlugins: "インストール済み",
+      enabledCount: (count) => `${count} 件有効`,
+      installed: "インストール済み",
+      notInstalled: "未インストール",
+      install: "インストール",
+      enable: "有効化",
+      disable: "無効化",
+      enabled: "有効",
+      disabled: "無効",
+      runStatus: "状態を実行",
+      routeResult: "Route 結果",
+      noRouteResult: "プラグイン route を実行するとレスポンスを確認できます。",
+      capabilities: "権限",
+      hookCount: (count) => `${count} hook`,
+      routeCount: (count) => `${count} route`,
+      storageCount: (count) => `${count} storage`,
     },
     language: { label: "言語" },
   },
@@ -1475,6 +1536,7 @@ function mergeMessages(base: Messages, override: MessageOverrides | undefined): 
     plan: { ...base.plan, ...override.plan },
     wiki: { ...base.wiki, ...override.wiki },
     integrations: { ...base.integrations, ...override.integrations },
+    plugins: { ...base.plugins, ...override.plugins },
     language: { ...base.language, ...override.language },
   };
 }

@@ -38,6 +38,45 @@ describe("ProjectFlare worker", () => {
     expect(projects).toContainEqual(expect.objectContaining({ id: "prj_launch" }));
   });
 
+  it("exposes plugin catalog and installed plugins without D1", async () => {
+    const catalog = (await worker
+      .fetch(new Request("http://localhost/api/plugins/catalog"), env)
+      .then((response) => response.json())) as Array<Record<string, unknown>>;
+    const installed = (await worker
+      .fetch(new Request("http://localhost/api/workspaces/ws_demo/plugins"), env)
+      .then((response) => response.json())) as Array<Record<string, unknown>>;
+
+    expect(catalog).toContainEqual(expect.objectContaining({ id: "projectflare-demo-plugin" }));
+    expect(installed).toContainEqual(
+      expect.objectContaining({
+        plugin_id: "projectflare-demo-plugin",
+        descriptor: expect.objectContaining({ name: "ProjectFlare Demo Plugin" }),
+      }),
+    );
+  });
+
+  it("invokes installed plugin routes without D1", async () => {
+    const response = await worker.fetch(
+      new Request("http://localhost/api/workspaces/ws_demo/plugins/projectflare-demo-plugin/routes/status", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ping: true }),
+      }),
+      env,
+    );
+    const body = await readJson(response);
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      plugin: {
+        id: "projectflare-demo-plugin",
+        enabled: true,
+      },
+      workspaceId: "ws_demo",
+      input: { ping: true },
+    });
+  });
+
   it("creates a generic webhook task without D1", async () => {
     const response = await worker.fetch(
       new Request("http://localhost/api/webhooks/generic/prj_launch", {

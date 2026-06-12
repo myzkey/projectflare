@@ -107,3 +107,47 @@ export type Notification = {
   read_at: string | null;
   created_at: string;
 };
+
+export type PluginCapability =
+  | "tasks:read"
+  | "tasks:write"
+  | "projects:read"
+  | "notifications:write"
+  | "webhooks:receive"
+  | "network:request"
+  | "storage:kv"
+  | "hooks.lifecycle:register"
+  | "hooks.tasks:register"
+  | "routes:register";
+
+export type PluginDescriptor = {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  author?: string;
+  entrypoint: string;
+  capabilities: PluginCapability[];
+  hooks?: string[];
+  routes?: Array<{
+    name: string;
+    method: "GET" | "POST";
+    description: string;
+  }>;
+  storage?: Array<{
+    name: string;
+    indexes?: string[];
+  }>;
+};
+
+export type InstalledPlugin = {
+  workspace_id: string;
+  plugin_id: string;
+  version: string;
+  enabled: number;
+  capabilities_json: string;
+  settings_json: string | null;
+  installed_at: string;
+  updated_at: string;
+  descriptor: PluginDescriptor | null;
+};

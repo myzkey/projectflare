@@ -1,5 +1,13 @@
 import { handleGenericWebhookUseCase } from "../../../../core/src/application/usecases/handle-generic-webhook";
 import {
+  dispatchPluginHookUseCase,
+  installPluginUseCase,
+  invokePluginRouteUseCase,
+  listInstalledPluginsUseCase,
+  listPluginCatalogUseCase,
+  setPluginEnabledUseCase,
+} from "../../../../core/src/application/usecases/manage-plugins";
+import {
   createProjectTaskUseCase,
   listProjectTasksUseCase,
   updateTaskUseCase,
@@ -12,6 +20,7 @@ import {
   repositoryFullNameFromPayload,
 } from "../../../../core/src/domain/github";
 import type { Notification, NotificationChannel } from "../../../../core/src/domain/notification";
+import type { PluginCapability } from "../../../../core/src/domain/plugin";
 import type { Project, Workspace } from "../../../../core/src/domain/project";
 import { createApiToken, sha256Hex, verifyGitHubSignature } from "../../../../core/src/domain/security";
 import { type Task as DomainTask, normalizePriority, taskStatusLabels } from "../../../../core/src/domain/task";
@@ -19,8 +28,10 @@ import type { WikiPage, WikiRevision } from "../../../../core/src/domain/wiki";
 import type { GitHubQueueMessage, ProjectFlareQueueMessage } from "../../../../core/src/ports/queue";
 import { createGenericWebhookPorts } from "../../infrastructure/cloudflare/d1/generic-webhook-adapter";
 import { createGitHubSyncPorts } from "../../infrastructure/cloudflare/d1/github-sync-adapter";
+import { createPluginRepository } from "../../infrastructure/cloudflare/d1/plugin-repository";
 import { createTaskUseCasePorts } from "../../infrastructure/cloudflare/d1/task-repository";
 import type { Env } from "../../infrastructure/cloudflare/env";
+import { createPluginCatalog, createPluginRuntime } from "../../infrastructure/cloudflare/plugins/builtin";
 import { renderApp } from "../ui/app";
 import { htmlResponse, json, jsonError } from "./responses";
 
@@ -74,9 +85,34 @@ export default {
       }
       if (path === "/api/health") return json({ ok: true, service: "projectflare" });
       if (path === "/api/me") return json(await getOrCreateUser(request, env));
+      if (path === "/api/plugins/catalog" && request.method === "GET") {
+        return json(await listPluginCatalogUseCase(createPluginPorts(env)));
+      }
       if (path === "/api/workspaces") {
         if (request.method === "GET") return json(await listWorkspaces(env));
         if (request.method === "POST") return json(await createWorkspace(request, env), 201);
+      }
+      if (path.match(/^\/api\/workspaces\/[^/]+\/plugins$/)) {
+        const workspaceId = path.split("/")[3];
+        if (request.method === "GET")
+          return json(await listInstalledPluginsUseCase(workspaceId, createPluginPorts(env)));
+        if (request.method === "POST") return json(await installPlugin(request, env, workspaceId), 201);
+      }
+      if (path.match(/^\/api\/workspaces\/[^/]+\/plugins\/[^/]+$/) && request.method === "PATCH") {
+        const [, , , workspaceId, , pluginId] = path.split("/");
+        return json(await setPluginEnabled(request, env, workspaceId, decodeURIComponent(pluginId)));
+      }
+      if (path.match(/^\/api\/workspaces\/[^/]+\/plugins\/[^/]+\/routes\/[^/]+$/)) {
+        const [, , , workspaceId, , pluginId, , routeName] = path.split("/");
+        return json(
+          await invokePluginRoute(
+            request,
+            env,
+            workspaceId,
+            decodeURIComponent(pluginId),
+            decodeURIComponent(routeName),
+          ),
+        );
       }
       if (path.match(/^\/api\/workspaces\/[^/]+\/projects$/)) {
         const workspaceId = path.split("/")[3];
@@ -250,6 +286,63 @@ async function createWorkspace(request: Request, env: Env) {
   ]);
 
   return workspace;
+}
+
+function createPluginPorts(env: Env) {
+  return {
+    catalog: createPluginCatalog(),
+    plugins: createPluginRepository(env),
+    runtime: createPluginRuntime(env),
+  };
+}
+
+async function installPlugin(request: Request, env: Env, workspaceId: string) {
+  const body = await request.json<{
+    plugin_id?: string;
+    approved_capabilities?: string[];
+    settings?: Record<string, unknown> | null;
+  }>();
+
+  return installPluginUseCase(
+    {
+      workspaceId,
+      pluginId: body.plugin_id?.trim() || "",
+      approvedCapabilities: pluginCapabilitiesFrom(body.approved_capabilities),
+      settings: body.settings ?? null,
+    },
+    createPluginPorts(env),
+  );
+}
+
+async function setPluginEnabled(request: Request, env: Env, workspaceId: string, pluginId: string) {
+  const body = await request.json<{ enabled?: boolean }>();
+  return setPluginEnabledUseCase(workspaceId, pluginId, body.enabled !== false, createPluginPorts(env));
+}
+
+async function invokePluginRoute(request: Request, env: Env, workspaceId: string, pluginId: string, routeName: string) {
+  const input =
+    request.method === "POST" && request.headers.get("content-type")?.includes("application/json")
+      ? await request.json<Record<string, unknown>>()
+      : Object.fromEntries(new URL(request.url).searchParams.entries());
+
+  const result = await invokePluginRouteUseCase(
+    {
+      workspaceId,
+      pluginId,
+      routeName,
+      method: request.method === "GET" ? "GET" : "POST",
+      input,
+    },
+    createPluginPorts(env),
+  );
+
+  if (!result.ok)
+    return jsonError(String((result.data as { error?: string }).error || "plugin_route_failed"), result.status ?? 500);
+  return result.data;
+}
+
+function pluginCapabilitiesFrom(value: string[] | undefined): PluginCapability[] {
+  return (value ?? []).filter((capability): capability is PluginCapability => typeof capability === "string");
 }
 
 async function listProjects(env: Env, workspaceId?: string) {
@@ -690,7 +783,7 @@ async function listWikiRevisions(env: Env, pageId: string) {
 
 async function createTask(request: Request, env: Env, projectId: string) {
   const body = await request.json<Partial<Task> & { dueDate?: string }>();
-  return createProjectTaskUseCase(
+  const task = await createProjectTaskUseCase(
     {
       projectId,
       title: body.title,
@@ -708,6 +801,23 @@ async function createTask(request: Request, env: Env, projectId: string) {
     },
     createTaskUseCasePorts(env),
   );
+
+  const workspaceId = await findWorkspaceIdForProject(env, projectId);
+  if (workspaceId) {
+    await dispatchPluginHookUseCase(
+      {
+        name: "task:created",
+        workspaceId,
+        projectId,
+        taskId: task.id,
+        title: task.title,
+        source: task.source,
+      },
+      createPluginPorts(env),
+    );
+  }
+
+  return task;
 }
 
 async function updateTask(request: Request, env: Env, taskId: string) {
@@ -970,6 +1080,15 @@ async function findProjectIdForGitHubRepository(env: Env, repositoryFullName: st
     .first<{ project_id: string | null }>();
 
   return repo?.project_id || null;
+}
+
+async function findWorkspaceIdForProject(env: Env, projectId: string): Promise<string | null> {
+  if (!env.DB) return projectId === "prj_launch" ? "ws_demo" : null;
+
+  const project = await env.DB.prepare("SELECT workspace_id FROM projects WHERE id = ?")
+    .bind(projectId)
+    .first<{ workspace_id: string }>();
+  return project?.workspace_id ?? null;
 }
 
 async function handleGenericWebhook(request: Request, env: Env, projectId: string) {

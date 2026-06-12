@@ -2,8 +2,10 @@ import type {
   AccessUser,
   GitHubEvent,
   GitHubRepository,
+  InstalledPlugin,
   Notification,
   NotificationChannel,
+  PluginDescriptor,
   Project,
   Task,
   TaskComment,
@@ -72,4 +74,15 @@ export const api = {
   createNotificationChannel: (projectId: string, body: unknown) =>
     postJson<NotificationChannel>(`/api/projects/${projectId}/notification-channels`, body),
   notifications: (projectId: string) => requestJson<Notification[]>(`/api/projects/${projectId}/notifications`),
+  pluginCatalog: () => requestJson<PluginDescriptor[]>("/api/plugins/catalog"),
+  installedPlugins: (workspaceId: string) => requestJson<InstalledPlugin[]>(`/api/workspaces/${workspaceId}/plugins`),
+  installPlugin: (workspaceId: string, body: unknown) =>
+    postJson<InstalledPlugin>(`/api/workspaces/${workspaceId}/plugins`, body),
+  setPluginEnabled: (workspaceId: string, pluginId: string, enabled: boolean) =>
+    patchJson<InstalledPlugin>(`/api/workspaces/${workspaceId}/plugins/${encodeURIComponent(pluginId)}`, { enabled }),
+  invokePluginRoute: (workspaceId: string, pluginId: string, routeName: string, body: unknown) =>
+    postJson<unknown>(
+      `/api/workspaces/${workspaceId}/plugins/${encodeURIComponent(pluginId)}/routes/${encodeURIComponent(routeName)}`,
+      body,
+    ),
 };
