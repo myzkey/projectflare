@@ -190,6 +190,7 @@ push 前の確認には以下を使います。
 ```sh
 pnpm check
 pnpm build
+pnpm test:e2e
 ```
 
 個別には以下も使えます。
@@ -199,6 +200,7 @@ pnpm typecheck
 pnpm lint
 pnpm format
 pnpm test
+pnpm test:e2e
 ```
 
 ## コミットメッセージ

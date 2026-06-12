@@ -192,6 +192,7 @@ Run the full local gate before pushing:
 ```sh
 pnpm check
 pnpm build
+pnpm test:e2e
 ```
 
 Useful individual commands:
@@ -201,6 +202,7 @@ pnpm typecheck
 pnpm lint
 pnpm format
 pnpm test
+pnpm test:e2e
 ```
 
 ## Commit Messages

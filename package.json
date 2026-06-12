@@ -16,6 +16,8 @@
     "lint": "biome check .",
     "format": "biome format --write .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "check": "pnpm typecheck && pnpm lint && pnpm test"
   },
   "dependencies": {
@@ -28,6 +30,7 @@
     "@cloudflare/workers-types": "4.20260610.1",
     "@commitlint/cli": "^21.0.2",
     "@commitlint/config-conventional": "^21.0.2",
+    "@playwright/test": "^1.60.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.17",
