@@ -62,6 +62,10 @@ export type Messages = {
     shortDescription: string;
     addProject: string;
     comments: string;
+    latestComments: (count: number, limit: number) => string;
+    showMoreComments: string;
+    expandComment: string;
+    collapseComment: string;
     noTask: string;
     unknown: string;
     emptyComments: string;
@@ -70,6 +74,7 @@ export type Messages = {
     mediaFile: string;
     uploadMedia: string;
     emptyMedia: string;
+    insertMedia: string;
   };
   plan: {
     timeline: string;
@@ -97,6 +102,7 @@ export type Messages = {
     uploadMedia: string;
     copyMarkdown: string;
     emptyMedia: string;
+    insertMedia: string;
   };
   integrations: {
     eventCount: (count: number) => string;
@@ -247,6 +253,10 @@ const en: Messages = {
     shortDescription: "Short description",
     addProject: "Add project",
     comments: "Comments",
+    latestComments: (count, limit) => `Latest ${count} of ${limit}`,
+    showMoreComments: "Show more comments",
+    expandComment: "Read more",
+    collapseComment: "Show less",
     noTask: "No task",
     unknown: "Unknown",
     emptyComments: "Select a task and add the first note.",
@@ -255,6 +265,7 @@ const en: Messages = {
     mediaFile: "Image or video file",
     uploadMedia: "Upload media",
     emptyMedia: "No media yet.",
+    insertMedia: "Insert",
   },
   plan: {
     timeline: "Timeline",
@@ -282,6 +293,7 @@ const en: Messages = {
     uploadMedia: "Upload media",
     copyMarkdown: "Copy Markdown",
     emptyMedia: "No media yet.",
+    insertMedia: "Insert",
   },
   integrations: {
     eventCount: (count) => `${count} events`,
@@ -942,6 +954,10 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       shortDescription: "短い説明",
       addProject: "プロジェクトを追加",
       comments: "コメント",
+      latestComments: (count, limit) => `最新 ${count}/${limit} 件`,
+      showMoreComments: "コメントをもっと表示",
+      expandComment: "続きを読む",
+      collapseComment: "閉じる",
       noTask: "タスク未選択",
       unknown: "不明",
       emptyComments: "タスクを選択して最初のコメントを追加してください。",
@@ -950,6 +966,7 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       mediaFile: "画像または動画ファイル",
       uploadMedia: "メディアをアップロード",
       emptyMedia: "メディアはまだありません。",
+      insertMedia: "挿入",
     },
     plan: {
       timeline: "タイムライン",
@@ -977,6 +994,7 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       uploadMedia: "メディアをアップロード",
       copyMarkdown: "Markdown をコピー",
       emptyMedia: "メディアはまだありません。",
+      insertMedia: "挿入",
     },
     integrations: {
       eventCount: (count) => `${count} 件のイベント`,

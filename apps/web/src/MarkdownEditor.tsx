@@ -15,9 +15,21 @@ import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
 import { RichTextPlugin } from "@lexical/react/LexicalRichTextPlugin";
 import { $createHeadingNode, $createQuoteNode, HeadingNode, QuoteNode } from "@lexical/rich-text";
 import { $setBlocksType } from "@lexical/selection";
-import { $getRoot, $getSelection, $isRangeSelection, FORMAT_TEXT_COMMAND, type LexicalEditor } from "lexical";
+import {
+  $createParagraphNode,
+  $createTextNode,
+  $getRoot,
+  $getSelection,
+  $isRangeSelection,
+  COMMAND_PRIORITY_EDITOR,
+  createCommand,
+  FORMAT_TEXT_COMMAND,
+  type LexicalEditor,
+} from "lexical";
 import { Bold, Code, Heading2, Italic, Link, List, ListOrdered, Quote } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+
+export const INSERT_MARKDOWN_SNIPPET_COMMAND = createCommand<string>("INSERT_MARKDOWN_SNIPPET_COMMAND");
 
 const autoLinkMatchers = [
   (text: string) => {
@@ -61,6 +73,7 @@ export function MarkdownEditor(props: {
   placeholder: string;
   ariaLabel: string;
   compact?: boolean;
+  onUploadFiles?: (files: File[]) => Promise<string[]>;
 }) {
   const initialMarkdown = props.value ?? "";
   const [markdown, setMarkdown] = useState(initialMarkdown);
@@ -104,6 +117,8 @@ export function MarkdownEditor(props: {
             editorState.read(() => setMarkdown($convertToMarkdownString(TRANSFORMERS)));
           }}
         />
+        <MarkdownSnippetPlugin name={props.name} onMarkdownChange={setMarkdown} />
+        <MediaPastePlugin onUploadFiles={props.onUploadFiles} />
         <FormResetPlugin markdown={initialMarkdown} onReset={setMarkdown} />
       </LexicalComposer>
     </div>
@@ -182,6 +197,119 @@ function setBlock(editor: LexicalEditor, block: "heading" | "quote" | "code") {
     if (block === "quote") $setBlocksType(selection, () => $createQuoteNode());
     if (block === "code") $setBlocksType(selection, () => $createCodeNode());
   });
+}
+
+function MarkdownSnippetPlugin(props: { name: string; onMarkdownChange(markdown: string): void }) {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    return editor.registerCommand(
+      INSERT_MARKDOWN_SNIPPET_COMMAND,
+      (markdown) => {
+        editor.update(() => insertMarkdownText(markdown), {
+          onUpdate: () => syncMarkdownState(editor, props.onMarkdownChange),
+        });
+        return true;
+      },
+      COMMAND_PRIORITY_EDITOR,
+    );
+  }, [editor, props.onMarkdownChange]);
+
+  useEffect(() => {
+    const insert = (event: Event) => {
+      const detail = (event as CustomEvent<{ target?: string; markdown?: string }>).detail;
+      if (!detail?.markdown || detail.target !== props.name) return;
+      editor.dispatchCommand(INSERT_MARKDOWN_SNIPPET_COMMAND, detail.markdown);
+    };
+    window.addEventListener("projectflare:insert-markdown", insert);
+    return () => window.removeEventListener("projectflare:insert-markdown", insert);
+  }, [editor, props.name]);
+
+  return null;
+}
+
+function syncMarkdownState(editor: LexicalEditor, onMarkdownChange: (markdown: string) => void) {
+  editor.getEditorState().read(() => onMarkdownChange($convertToMarkdownString(TRANSFORMERS)));
+}
+
+function insertMarkdownText(markdown: string) {
+  const selection = $getSelection();
+  const snippet = `\n${markdown}\n`;
+  if ($isRangeSelection(selection)) {
+    selection.insertText(snippet);
+    return;
+  }
+
+  const paragraph = $createParagraphNode();
+  paragraph.append($createTextNode(markdown));
+  $getRoot().append(paragraph);
+}
+
+function MediaPastePlugin(props: { onUploadFiles?: (files: File[]) => Promise<string[]> }) {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    if (!props.onUploadFiles) return;
+    const root = editor.getRootElement();
+    if (!root) return;
+
+    const uploadAndInsert = async (files: File[]) => {
+      const markdownSnippets = await props.onUploadFiles?.(files);
+      for (const markdown of markdownSnippets ?? []) {
+        editor.dispatchCommand(INSERT_MARKDOWN_SNIPPET_COMMAND, markdown);
+      }
+    };
+
+    const onPaste = (event: ClipboardEvent) => {
+      const files = mediaFilesFromItems(event.clipboardData?.items);
+      if (!files.length) return;
+      event.preventDefault();
+      void uploadAndInsert(files);
+    };
+
+    const onDrop = (event: DragEvent) => {
+      const files = mediaFilesFromList(event.dataTransfer?.files);
+      if (!files.length) return;
+      event.preventDefault();
+      void uploadAndInsert(files);
+    };
+
+    const onDragOver = (event: DragEvent) => {
+      if (event.dataTransfer?.types.includes("Files")) event.preventDefault();
+    };
+
+    root.addEventListener("paste", onPaste);
+    root.addEventListener("drop", onDrop);
+    root.addEventListener("dragover", onDragOver);
+    return () => {
+      root.removeEventListener("paste", onPaste);
+      root.removeEventListener("drop", onDrop);
+      root.removeEventListener("dragover", onDragOver);
+    };
+  }, [editor, props.onUploadFiles]);
+
+  return null;
+}
+
+function mediaFilesFromItems(items?: DataTransferItemList | null): File[] {
+  if (!items) return [];
+  const files: File[] = [];
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    if (item.kind !== "file") continue;
+    const file = item.getAsFile();
+    if (file && isSupportedMediaFile(file)) files.push(file);
+  }
+  return files;
+}
+
+function mediaFilesFromList(list?: FileList | null): File[] {
+  if (!list) return [];
+  return Array.from(list).filter(isSupportedMediaFile);
+}
+
+function isSupportedMediaFile(file: File) {
+  return file.type.startsWith("image/") || file.type.startsWith("video/");
 }
 
 function FormResetPlugin(props: { markdown: string; onReset(markdown: string): void }) {

@@ -32,6 +32,8 @@ import { Integrations, Overview, Plan, Plugins, Wiki } from "./views";
 
 const tabs = ["overview", "plan", "wiki", "integrations", "plugins"] as const;
 type Tab = AppTab;
+const initialCommentLimit = 20;
+const expandedCommentLimit = 50;
 
 export function App() {
   const [locale, setLocale] = useState<Locale>(() => detectInitialLocale());
@@ -42,6 +44,7 @@ export function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [dependencies, setDependencies] = useState<TaskDependency[]>([]);
   const [comments, setComments] = useState<TaskComment[]>([]);
+  const [commentLimit, setCommentLimit] = useState(initialCommentLimit);
   const [taskAttachments, setTaskAttachments] = useState<Attachment[]>([]);
   const [wikiPages, setWikiPages] = useState<WikiPage[]>([]);
   const [wikiRevisions, setWikiRevisions] = useState<WikiRevision[]>([]);
@@ -88,18 +91,22 @@ export function App() {
   }, [locale]);
 
   useEffect(() => {
+    setCommentLimit(initialCommentLimit);
+  }, [selectedTaskIdForLoad]);
+
+  useEffect(() => {
     if (!selectedTaskIdForLoad) {
       setComments([]);
       setTaskAttachments([]);
       return;
     }
-    void Promise.all([api.comments(selectedTaskIdForLoad), api.taskAttachments(selectedTaskIdForLoad)])
+    void Promise.all([api.comments(selectedTaskIdForLoad, commentLimit), api.taskAttachments(selectedTaskIdForLoad)])
       .then(([nextComments, nextAttachments]) => {
         setComments(nextComments);
         setTaskAttachments(nextAttachments);
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : messages.overview.unknown));
-  }, [selectedTaskIdForLoad, messages.overview.unknown]);
+  }, [selectedTaskIdForLoad, commentLimit, messages.overview.unknown]);
 
   useEffect(() => {
     if (!selectedWikiPageIdForLoad) {
@@ -238,8 +245,12 @@ export function App() {
     await run(async () => {
       await api.createComment(selectedTask.id, body);
       form.reset();
-      setComments(await api.comments(selectedTask.id));
+      setComments(await api.comments(selectedTask.id, commentLimit));
     });
+  }
+
+  async function showMoreComments() {
+    setCommentLimit(expandedCommentLimit);
   }
 
   async function uploadTaskAttachment(event: FormEvent<HTMLFormElement>) {
@@ -252,6 +263,24 @@ export function App() {
       form.reset();
       setTaskAttachments(await api.taskAttachments(selectedTask.id));
     });
+  }
+
+  async function uploadTaskAttachmentFiles(files: File[]): Promise<string[]> {
+    if (!selectedTask) return [];
+    try {
+      setError(null);
+      const uploaded: Attachment[] = [];
+      for (const file of files) {
+        const data = new FormData();
+        data.set("file", file);
+        uploaded.push(await api.uploadTaskAttachment(selectedTask.id, data));
+      }
+      setTaskAttachments(await api.taskAttachments(selectedTask.id));
+      return uploaded.map((attachment) => attachment.markdown);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : messages.overview.unknown);
+      return [];
+    }
   }
 
   async function createDependency(event: FormEvent<HTMLFormElement>) {
@@ -286,6 +315,25 @@ export function App() {
       setWikiAttachments(await api.wikiAttachments(selectedWikiPage.id));
       setNotice(attachment.markdown);
     });
+  }
+
+  async function uploadWikiAttachmentFiles(files: File[]): Promise<string[]> {
+    if (!selectedWikiPage) return [];
+    try {
+      setError(null);
+      const uploaded: Attachment[] = [];
+      for (const file of files) {
+        const data = new FormData();
+        data.set("file", file);
+        uploaded.push(await api.uploadWikiAttachment(selectedWikiPage.id, data));
+      }
+      setWikiAttachments(await api.wikiAttachments(selectedWikiPage.id));
+      setNotice(uploaded.at(-1)?.markdown ?? null);
+      return uploaded.map((attachment) => attachment.markdown);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : messages.overview.unknown);
+      return [];
+    }
   }
 
   async function createGitHubRepository(event: FormEvent<HTMLFormElement>) {
@@ -462,7 +510,11 @@ export function App() {
             onCreateTask={createTask}
             onCreateProject={createProject}
             onCreateComment={createComment}
+            commentLimit={commentLimit}
+            canLoadMoreComments={commentLimit < expandedCommentLimit && comments.length >= commentLimit}
+            onLoadMoreComments={showMoreComments}
             onUploadAttachment={uploadTaskAttachment}
+            onUploadAttachmentFiles={uploadTaskAttachmentFiles}
             messages={messages}
             locale={locale}
           />
@@ -479,6 +531,7 @@ export function App() {
             onSelectPage={setSelectedWikiPageId}
             onSaveWiki={saveWiki}
             onUploadAttachment={uploadWikiAttachment}
+            onUploadAttachmentFiles={uploadWikiAttachmentFiles}
             messages={messages}
             locale={locale}
           />

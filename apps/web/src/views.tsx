@@ -16,7 +16,7 @@ import {
   Send,
   ShieldCheck,
 } from "lucide-react";
-import { type CSSProperties, type FormEvent, lazy, Suspense, useMemo } from "react";
+import { type CSSProperties, type FormEvent, lazy, Suspense, useMemo, useState } from "react";
 import type { Locale, Messages } from "../../../packages/admin/src/i18n";
 import type {
   Attachment,
@@ -65,7 +65,11 @@ export function Overview(props: {
   onCreateTask(event: FormEvent<HTMLFormElement>): Promise<void>;
   onCreateProject(event: FormEvent<HTMLFormElement>): Promise<void>;
   onCreateComment(event: FormEvent<HTMLFormElement>): Promise<void>;
+  commentLimit: number;
+  canLoadMoreComments: boolean;
+  onLoadMoreComments(): Promise<void>;
   onUploadAttachment(event: FormEvent<HTMLFormElement>): Promise<void>;
+  onUploadAttachmentFiles(files: File[]): Promise<string[]>;
   messages: Messages;
   locale: Locale;
 }) {
@@ -209,7 +213,11 @@ export function Overview(props: {
         <PanelTitle
           icon={<MessageSquare size={18} />}
           title={props.messages.overview.comments}
-          meta={props.selectedTask?.title ?? props.messages.overview.noTask}
+          meta={
+            props.selectedTask
+              ? props.messages.overview.latestComments(props.comments.length, props.commentLimit)
+              : props.messages.overview.noTask
+          }
         />
         <div className="comment-list">
           {props.comments.length ? (
@@ -217,11 +225,20 @@ export function Overview(props: {
               <article key={comment.id} className="comment">
                 <strong>{comment.author_name || props.messages.overview.unknown}</strong>
                 <small>{formatDate(comment.created_at, props.locale)}</small>
-                <p>{comment.body}</p>
+                <CommentBody
+                  body={comment.body}
+                  moreLabel={props.messages.overview.expandComment}
+                  lessLabel={props.messages.overview.collapseComment}
+                />
               </article>
             ))
           ) : (
             <p className="empty">{props.messages.overview.emptyComments}</p>
+          )}
+          {props.canLoadMoreComments && (
+            <button type="button" className="subtle-action" onClick={() => void props.onLoadMoreComments()}>
+              {props.messages.overview.showMoreComments}
+            </button>
           )}
         </div>
         <form className="inline-form" onSubmit={(event) => void props.onCreateComment(event)}>
@@ -230,6 +247,7 @@ export function Overview(props: {
             placeholder={props.messages.overview.writeComment}
             ariaLabel={props.messages.overview.writeComment}
             compact={true}
+            onUploadFiles={props.onUploadAttachmentFiles}
           />
           <button type="submit">
             <Send size={16} />
@@ -243,7 +261,12 @@ export function Overview(props: {
           title={props.messages.overview.attachments}
           meta={props.selectedTask?.title ?? props.messages.overview.noTask}
         />
-        <AttachmentGrid attachments={props.attachments} emptyLabel={props.messages.overview.emptyMedia} />
+        <AttachmentGrid
+          attachments={props.attachments}
+          emptyLabel={props.messages.overview.emptyMedia}
+          insertTarget="body"
+          insertLabel={props.messages.overview.insertMedia}
+        />
         <form className="inline-form" onSubmit={(event) => void props.onUploadAttachment(event)}>
           <input
             name="file"
@@ -342,6 +365,7 @@ export function Wiki(props: {
   onSelectPage(id: string): void;
   onSaveWiki(event: FormEvent<HTMLFormElement>): Promise<void>;
   onUploadAttachment(event: FormEvent<HTMLFormElement>): Promise<void>;
+  onUploadAttachmentFiles(files: File[]): Promise<string[]>;
   messages: Messages;
   locale: Locale;
 }) {
@@ -386,6 +410,7 @@ export function Wiki(props: {
             placeholder={props.messages.wiki.markdownBody}
             ariaLabel={props.messages.wiki.markdownBody}
             value={props.selectedPage?.body_markdown ?? ""}
+            onUploadFiles={props.onUploadAttachmentFiles}
           />
           <button type="submit">
             <Save size={16} />
@@ -421,6 +446,8 @@ export function Wiki(props: {
           showMarkdown={true}
           copyLabel={props.messages.wiki.copyMarkdown}
           emptyLabel={props.messages.wiki.emptyMedia}
+          insertTarget="body_markdown"
+          insertLabel={props.messages.wiki.insertMedia}
         />
         <form className="form-grid compact" onSubmit={(event) => void props.onUploadAttachment(event)}>
           <input name="file" type="file" accept="image/*,video/*" aria-label={props.messages.wiki.mediaFile} required />
@@ -698,43 +725,95 @@ function TaskChips({ task }: { task: Task }) {
   );
 }
 
+function CommentBody(props: { body: string; moreLabel: string; lessLabel: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const limit = 280;
+  const shouldTruncate = props.body.length > limit;
+  const text = shouldTruncate && !expanded ? `${props.body.slice(0, limit).trimEnd()}...` : props.body;
+
+  return (
+    <>
+      <p>{text}</p>
+      {shouldTruncate && (
+        <button type="button" className="text-action" onClick={() => setExpanded((current) => !current)}>
+          {expanded ? props.lessLabel : props.moreLabel}
+        </button>
+      )}
+    </>
+  );
+}
+
 function AttachmentGrid(props: {
   attachments: Attachment[];
   showMarkdown?: boolean;
   copyLabel?: string;
   emptyLabel: string;
+  insertTarget?: string;
+  insertLabel?: string;
 }) {
   if (!props.attachments.length) return <p className="empty">{props.emptyLabel}</p>;
 
   return (
     <div className="attachment-grid">
       {props.attachments.map((attachment) => (
-        <article key={attachment.id} className="attachment-card">
-          <a href={attachment.url} target="_blank" rel="noreferrer">
-            {attachment.content_type.startsWith("video/") ? (
-              <video src={attachment.url} controls preload="metadata">
-                <track kind="captions" />
-              </video>
-            ) : (
-              <img src={attachment.url} alt={attachment.filename} />
-            )}
-          </a>
-          <strong>{attachment.filename}</strong>
-          <small>{Math.ceil(attachment.byte_size / 1024)} KB</small>
-          {props.showMarkdown && (
-            <button
-              type="button"
-              onClick={() => void navigator.clipboard?.writeText(attachment.markdown)}
-              title={attachment.markdown}
-            >
-              <Copy size={15} />
-              {props.copyLabel}
-            </button>
-          )}
-        </article>
+        <AttachmentCard
+          key={attachment.id}
+          attachment={attachment}
+          showMarkdown={props.showMarkdown}
+          copyLabel={props.copyLabel}
+          insertTarget={props.insertTarget}
+          insertLabel={props.insertLabel}
+        />
       ))}
     </div>
   );
+}
+
+function AttachmentCard(props: {
+  attachment: Attachment;
+  showMarkdown?: boolean;
+  copyLabel?: string;
+  insertTarget?: string;
+  insertLabel?: string;
+}) {
+  const target = props.insertTarget;
+  const attachment = props.attachment;
+
+  return (
+    <article className="attachment-card">
+      <a href={attachment.url} target="_blank" rel="noreferrer">
+        {attachment.content_type.startsWith("video/") ? (
+          <video src={attachment.url} controls preload="metadata">
+            <track kind="captions" />
+          </video>
+        ) : (
+          <img src={attachment.url} alt={attachment.filename} />
+        )}
+      </a>
+      <strong>{attachment.filename}</strong>
+      <small>{Math.ceil(attachment.byte_size / 1024)} KB</small>
+      {props.showMarkdown && (
+        <button
+          type="button"
+          onClick={() => void navigator.clipboard?.writeText(attachment.markdown)}
+          title={attachment.markdown}
+        >
+          <Copy size={15} />
+          {props.copyLabel}
+        </button>
+      )}
+      {target && (
+        <button type="button" onClick={() => insertMarkdownSnippet(target, attachment.markdown)}>
+          <Plus size={15} />
+          {props.insertLabel}
+        </button>
+      )}
+    </article>
+  );
+}
+
+function insertMarkdownSnippet(target: string, markdown: string) {
+  window.dispatchEvent(new CustomEvent("projectflare:insert-markdown", { detail: { target, markdown } }));
 }
 
 function LazyMarkdownEditor(props: {
@@ -743,6 +822,7 @@ function LazyMarkdownEditor(props: {
   placeholder: string;
   ariaLabel: string;
   compact?: boolean;
+  onUploadFiles?: (files: File[]) => Promise<string[]>;
 }) {
   return (
     <Suspense fallback={<EditorFallback compact={props.compact} placeholder={props.placeholder} />}>

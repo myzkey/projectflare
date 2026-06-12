@@ -196,6 +196,8 @@ packages/admin/src/*          # API client, DTO types, locale catalogs
 API responses are camelCase at the HTTP boundary. The admin client adapts them back into the current UI model while the D1 adapters keep snake_case close to SQL.
 
 The editor UI uses Lexical for rich editing, Markdown shortcuts, history, links, lists, quotes, headings, and code blocks. Persistence stays Markdown-first so D1 records and webhook/API payloads remain portable text.
+Attachment cards dispatch Markdown snippets to the target Lexical editor through `INSERT_MARKDOWN_SNIPPET_COMMAND`, keeping uploaded media insertion as Markdown text rather than a storage-specific editor node.
+Comment and wiki editors also listen for pasted or dropped image/video files, upload them through the same attachment API, refresh the attachment list, and dispatch the returned Markdown snippets into the current editor.
 
 ## Refactoring Rule
 

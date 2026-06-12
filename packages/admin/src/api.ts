@@ -84,7 +84,7 @@ export const api = {
   projectDependencies: (projectId: string) => requestJson<TaskDependency[]>(`/api/projects/${projectId}/dependencies`),
   createDependency: (taskId: string, dependsOnTaskId: string) =>
     postJson<TaskDependency>(`/api/tasks/${taskId}/dependencies`, { dependsOnTaskId }),
-  comments: (taskId: string) => requestJson<TaskComment[]>(`/api/tasks/${taskId}/comments`),
+  comments: (taskId: string, limit = 20) => requestJson<TaskComment[]>(`/api/tasks/${taskId}/comments?limit=${limit}`),
   createComment: (taskId: string, body: string) => postJson<TaskComment>(`/api/tasks/${taskId}/comments`, { body }),
   taskAttachments: (taskId: string) => requestJson<Attachment[]>(`/api/tasks/${taskId}/attachments`),
   uploadTaskAttachment: (taskId: string, body: FormData) =>

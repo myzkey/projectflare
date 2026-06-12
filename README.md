@@ -28,6 +28,8 @@ ProjectFlare is not trying to replace Jira, Linear, Notion, Redmine, or OpenProj
 - Markdown-backed rich editing for task descriptions, task comments, and wiki pages
 - Markdown wiki page listing, editing, preview, and revision history
 - Image and lightweight video uploads for task and wiki attachments, backed by R2 object storage and D1 metadata
+- Insert uploaded media Markdown into the active comment or wiki editor
+- Paste or drop image/lightweight video files into comment and wiki editors to upload and insert Markdown automatically
 - GitHub repository linking, webhook intake, issue/comment/PR sync, and queue processing
 - Tokenized generic webhook endpoints, app notifications, and outgoing Slack/Lark/webhook notification channels
 - Generic webhook endpoint that can create tasks from JSON
@@ -132,8 +134,10 @@ ProjectFlare exposes the first MCP tool schema descriptors under `packages/core/
 - Create and list workspaces and projects
 - Create tasks with status, priority, assignee, dates, progress, source, labels, and external URL fields
 - Update task status, priority, progress, dates, and metadata
-- Add and list task comments
+- Add and list latest-first task comments with bounded loading and per-comment truncation
 - Upload image or lightweight video attachments to tasks
+- Insert task attachment Markdown into comments
+- Paste or drop task comment media directly into the editor
 - Render a scan-friendly overview with status metrics and a task table
 
 ## Phase 2: Planning And Wiki
@@ -144,6 +148,8 @@ ProjectFlare exposes the first MCP tool schema descriptors under `packages/core/
 - Store a wiki revision every time a page is created or updated
 - List wiki revisions for the selected page
 - Upload wiki media and copy Markdown snippets
+- Insert wiki media snippets into the editor body
+- Paste or drop wiki media directly into the editor body
 
 ## Phase 3: GitHub Sync
 

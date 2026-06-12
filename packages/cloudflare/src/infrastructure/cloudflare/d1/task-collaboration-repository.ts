@@ -52,16 +52,17 @@ export function createD1TaskCollaborationRepository(env: Env): TaskCollaboration
         .bind(dependency.task_id, dependency.depends_on_task_id)
         .run();
     },
-    listComments: async (taskId) => {
+    listComments: async (taskId, options) => {
       if (!env.DB) return [];
       const { results } = await env.DB.prepare(
         `SELECT c.*, u.name AS author_name
          FROM task_comments c
          LEFT JOIN users u ON u.id = c.author_user_id
          WHERE c.task_id = ?
-         ORDER BY c.created_at ASC`,
+         ORDER BY c.created_at DESC
+         LIMIT ?`,
       )
-        .bind(taskId)
+        .bind(taskId, options.limit)
         .all<TaskComment>();
       return results;
     },

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -47,7 +47,17 @@ test("creates a task and adds a comment", async ({ page }) => {
     buffer: Buffer.from([137, 80, 78, 71]),
   });
   await page.getByRole("button", { name: "Upload media" }).click();
-  await expect(page.locator(".attachment-card").filter({ hasText: "task-image.png" }).first()).toBeVisible();
+  const taskAttachment = page.locator(".attachment-card").filter({ hasText: "task-image.png" }).first();
+  await expect(taskAttachment).toBeVisible();
+  await taskAttachment.getByRole("button", { name: "Insert" }).click();
+  await page.locator(".comment-panel .inline-form button[type='submit']").click();
+  await expect(page.locator(".comment").filter({ hasText: "task-image.png" }).first()).toBeVisible();
+
+  await pasteMedia(page, page.getByLabel("Write a comment"), "pasted-task.png");
+  await expect(page.locator(".attachment-card").filter({ hasText: "pasted-task.png" }).first()).toBeVisible();
+  await expect(page.getByLabel("Write a comment")).toContainText("pasted-task.png");
+  await page.locator(".comment-panel .inline-form button[type='submit']").click();
+  await expect(page.locator(".comment").filter({ hasText: "pasted-task.png" }).first()).toBeVisible();
 });
 
 test("updates task status and saves wiki content", async ({ page }) => {
@@ -76,7 +86,14 @@ test("updates task status and saves wiki content", async ({ page }) => {
     buffer: Buffer.from([137, 80, 78, 71]),
   });
   await page.getByRole("button", { name: "Upload media" }).click();
-  await expect(page.locator(".attachment-card").filter({ hasText: "wiki-image.png" }).first()).toBeVisible();
+  const wikiAttachment = page.locator(".attachment-card").filter({ hasText: "wiki-image.png" }).first();
+  await expect(wikiAttachment).toBeVisible();
+  await wikiAttachment.getByRole("button", { name: "Insert" }).click();
+  await expect(page.getByLabel("Markdown body")).toContainText("wiki-image.png");
+
+  await pasteMedia(page, page.getByLabel("Markdown body"), "pasted-wiki.png");
+  await expect(page.locator(".attachment-card").filter({ hasText: "pasted-wiki.png" }).first()).toBeVisible();
+  await expect(page.getByLabel("Markdown body")).toContainText("pasted-wiki.png");
 });
 
 test("creates a generic webhook endpoint from integrations", async ({ page }) => {
@@ -128,3 +145,19 @@ test("switches locale to Japanese and Arabic RTL", async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("lang", "ar");
   await expect(page.locator("html")).toHaveAttribute("dir", "rtl");
 });
+
+async function pasteMedia(page: Page, target: Locator, filename: string) {
+  await target.focus();
+  await target.evaluate((element, name) => {
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(
+      new File([Uint8Array.from([137, 80, 78, 71])], name, {
+        type: "image/png",
+      }),
+    );
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: dataTransfer });
+    element.dispatchEvent(event);
+  }, filename);
+  await page.waitForLoadState("networkidle");
+}

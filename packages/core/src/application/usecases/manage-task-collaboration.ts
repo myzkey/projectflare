@@ -35,10 +35,16 @@ export async function createTaskDependencyUseCase(
 }
 
 export async function listTaskCommentsUseCase(
-  taskId: string,
+  input: { taskId: string; limit?: number | null },
   ports: TaskCollaborationUseCasePorts,
 ): Promise<TaskComment[]> {
-  return ports.collaboration.listComments(taskId);
+  const limit = normalizeCommentLimit(input.limit);
+  return ports.collaboration.listComments(input.taskId, { limit });
+}
+
+function normalizeCommentLimit(limit?: number | null) {
+  if (!limit || Number.isNaN(limit)) return 20;
+  return Math.min(Math.max(Math.floor(limit), 1), 50);
 }
 
 export async function createTaskCommentUseCase(

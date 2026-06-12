@@ -597,6 +597,25 @@ button[type="submit"] {
   margin: 6px 0 0;
 }
 
+.text-action,
+.subtle-action {
+  width: fit-content;
+  border: 0;
+  background: transparent;
+  color: var(--lake);
+  padding: 0;
+  font-size: 0.82rem;
+}
+
+.text-action {
+  margin-top: 4px;
+}
+
+.subtle-action {
+  justify-self: start;
+  margin-top: 2px;
+}
+
 .inline-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 46px;

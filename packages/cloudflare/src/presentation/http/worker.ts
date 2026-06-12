@@ -201,7 +201,7 @@ export default {
       }
       if (path.match(/^\/api\/tasks\/[^/]+\/comments$/)) {
         const taskId = path.split("/")[3];
-        if (request.method === "GET") return json(await listTaskComments(env, taskId));
+        if (request.method === "GET") return json(await listTaskComments(request, env, taskId));
         if (request.method === "POST") return json(await createTaskComment(request, env, taskId), 201);
       }
       if (path.match(/^\/api\/tasks\/[^/]+\/attachments$/)) {
@@ -699,9 +699,10 @@ async function createTaskDependency(request: Request, env: Env, taskId: string) 
   );
 }
 
-async function listTaskComments(env: Env, taskId: string) {
-  const comments = await listTaskCommentsUseCase(taskId, createTaskCollaborationUseCasePorts(env));
-  return comments.length ? comments : demoComments(taskId);
+async function listTaskComments(request: Request, env: Env, taskId: string) {
+  const limit = Number(new URL(request.url).searchParams.get("limit") ?? "20");
+  const comments = await listTaskCommentsUseCase({ taskId, limit }, createTaskCollaborationUseCasePorts(env));
+  return comments.length ? comments : demoComments(taskId).slice(0, Math.min(Math.max(limit || 20, 1), 50));
 }
 
 async function createTaskComment(request: Request, env: Env, taskId: string) {
