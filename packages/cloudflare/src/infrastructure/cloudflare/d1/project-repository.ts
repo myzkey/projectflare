@@ -70,6 +70,7 @@ export function createD1ProjectRepository(env: Env): ProjectRepository {
     },
     createProject: async (project, ownerUserId) => {
       if (!env.DB) return;
+      const envWithDb = env as Env & { DB: NonNullable<Env["DB"]> };
       await env.DB.batch([
         env.DB.prepare(
           `INSERT INTO projects (id, workspace_id, name, description, status, starts_on, due_on, github_repository_url)
@@ -88,6 +89,7 @@ export function createD1ProjectRepository(env: Env): ProjectRepository {
           `INSERT INTO project_members (project_id, user_id, role)
            VALUES (?, ?, 'owner')`,
         ).bind(project.id, ownerUserId),
+        ...defaultTaskStatusStatements(envWithDb, project.id),
       ]);
     },
     updateProject: async (projectId, patch: ProjectUpdatePatch) => {
@@ -109,4 +111,19 @@ export function createD1ProjectRepository(env: Env): ProjectRepository {
         .run();
     },
   };
+}
+
+function defaultTaskStatusStatements(env: Env & { DB: NonNullable<Env["DB"]> }, projectId: string) {
+  return [
+    ["todo", "Todo", "#64748b", 1, 0, 0],
+    ["in_progress", "In Progress", "#2563eb", 2, 0, 0],
+    ["review", "Review", "#d97706", 3, 0, 0],
+    ["done", "Done", "#16a34a", 4, 1, 0],
+    ["archived", "Archived", "#6b7280", 5, 0, 1],
+  ].map(([id, name, color, position, isDone, isArchived]) =>
+    env.DB.prepare(
+      `INSERT INTO task_statuses (id, project_id, name, color, position, is_done, is_archived)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, projectId, name, color, position, isDone, isArchived),
+  );
 }

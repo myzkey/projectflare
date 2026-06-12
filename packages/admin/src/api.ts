@@ -11,6 +11,7 @@ import type {
   Task,
   TaskComment,
   TaskDependency,
+  TaskStatusDefinition,
   WebhookEndpoint,
   WikiPage,
   WikiRevision,
@@ -81,6 +82,11 @@ export const api = {
   tasks: (projectId: string) => requestJson<Task[]>(`/api/projects/${projectId}/tasks`),
   createTask: (projectId: string, body: unknown) => postJson<Task>(`/api/projects/${projectId}/tasks`, body),
   updateTask: (taskId: string, body: unknown) => patchJson<Task>(`/api/tasks/${taskId}`, body),
+  taskStatuses: (projectId: string) => requestJson<TaskStatusDefinition[]>(`/api/projects/${projectId}/statuses`),
+  createTaskStatus: (projectId: string, body: unknown) =>
+    postJson<TaskStatusDefinition>(`/api/projects/${projectId}/statuses`, body),
+  updateTaskStatus: (projectId: string, statusId: string, body: unknown) =>
+    patchJson<TaskStatusDefinition>(`/api/projects/${projectId}/statuses/${encodeURIComponent(statusId)}`, body),
   projectDependencies: (projectId: string) => requestJson<TaskDependency[]>(`/api/projects/${projectId}/dependencies`),
   createDependency: (taskId: string, dependsOnTaskId: string) =>
     postJson<TaskDependency>(`/api/tasks/${taskId}/dependencies`, { dependsOnTaskId }),

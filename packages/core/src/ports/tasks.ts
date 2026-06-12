@@ -1,4 +1,4 @@
-import type { Task } from "../domain/task";
+import type { Task, TaskStatusDefinition } from "../domain/task";
 
 export type TaskCreateInput = {
   projectId: string;
@@ -55,6 +55,17 @@ export type TaskRepository = {
   findById(id: string): Promise<Task | null>;
   create(task: Task): Promise<void>;
   update(id: string, patch: TaskUpdatePatch): Promise<void>;
+  listStatuses(projectId: string): Promise<TaskStatusDefinition[]>;
+  createStatus(status: TaskStatusDefinition): Promise<void>;
+  updateStatus(projectId: string, statusId: string, patch: TaskStatusUpdatePatch): Promise<void>;
+};
+
+export type TaskStatusUpdatePatch = {
+  name: string;
+  color: string;
+  position: number;
+  is_done: number;
+  is_archived: number;
 };
 
 export type TaskUseCasePorts = {

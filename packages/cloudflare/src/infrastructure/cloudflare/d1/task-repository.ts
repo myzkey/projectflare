@@ -1,4 +1,4 @@
-import type { Task } from "../../../../../core/src/domain/task";
+import type { Task, TaskStatusDefinition } from "../../../../../core/src/domain/task";
 import type { TaskRepository, TaskUpdatePatch, TaskUseCasePorts } from "../../../../../core/src/ports/tasks";
 import type { Env } from "../env";
 
@@ -24,20 +24,16 @@ export function createD1TaskRepository(env: Env): TaskRepository {
       if (!env.DB) return [];
 
       const { results } = await env.DB.prepare(
-        `SELECT t.*, u.name AS assignee_name, c.name AS category_name, c.color AS category_color, m.name AS milestone_name, m.due_on AS milestone_due_on
+        `SELECT t.*, u.name AS assignee_name, c.name AS category_name, c.color AS category_color, m.name AS milestone_name, m.due_on AS milestone_due_on,
+           s.name AS status_name, s.color AS status_color, s.position AS status_position, s.is_done AS status_is_done, s.is_archived AS status_is_archived
          FROM tasks t
          LEFT JOIN users u ON u.id = t.assignee_user_id
          LEFT JOIN task_categories c ON c.id = t.category_id
          LEFT JOIN task_milestones m ON m.id = t.milestone_id
+         LEFT JOIN task_statuses s ON s.project_id = t.project_id AND s.id = t.status
          WHERE t.project_id = ?
          ORDER BY
-           CASE t.status
-             WHEN 'in_progress' THEN 1
-             WHEN 'review' THEN 2
-             WHEN 'todo' THEN 3
-             WHEN 'done' THEN 4
-             ELSE 5
-           END,
+           COALESCE(s.position, 999) ASC,
            COALESCE(t.due_on, '9999-12-31') ASC`,
       )
         .bind(projectId)
@@ -48,11 +44,13 @@ export function createD1TaskRepository(env: Env): TaskRepository {
     findById: async (id) => {
       if (!env.DB) return null;
       const row = await env.DB.prepare(
-        `SELECT t.*, u.name AS assignee_name, c.name AS category_name, c.color AS category_color, m.name AS milestone_name, m.due_on AS milestone_due_on
+        `SELECT t.*, u.name AS assignee_name, c.name AS category_name, c.color AS category_color, m.name AS milestone_name, m.due_on AS milestone_due_on,
+           s.name AS status_name, s.color AS status_color, s.position AS status_position, s.is_done AS status_is_done, s.is_archived AS status_is_archived
          FROM tasks t
          LEFT JOIN users u ON u.id = t.assignee_user_id
          LEFT JOIN task_categories c ON c.id = t.category_id
          LEFT JOIN task_milestones m ON m.id = t.milestone_id
+         LEFT JOIN task_statuses s ON s.project_id = t.project_id AND s.id = t.status
          WHERE t.id = ?`,
       )
         .bind(id)
@@ -114,6 +112,45 @@ export function createD1TaskRepository(env: Env): TaskRepository {
           JSON.stringify(patch.tags),
           id,
         )
+        .run();
+    },
+    listStatuses: async (projectId) => {
+      if (!env.DB) return [];
+      const { results } = await env.DB.prepare(
+        `SELECT id, project_id, name, color, position, is_done, is_archived, created_at, updated_at
+         FROM task_statuses
+         WHERE project_id = ?
+         ORDER BY position ASC, created_at ASC`,
+      )
+        .bind(projectId)
+        .all<TaskStatusDefinition>();
+      return results;
+    },
+    createStatus: async (status) => {
+      if (!env.DB) return;
+      await env.DB.prepare(
+        `INSERT INTO task_statuses (id, project_id, name, color, position, is_done, is_archived)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+        .bind(
+          status.id,
+          status.project_id,
+          status.name,
+          status.color,
+          status.position,
+          status.is_done,
+          status.is_archived,
+        )
+        .run();
+    },
+    updateStatus: async (projectId, statusId, patch) => {
+      if (!env.DB) return;
+      await env.DB.prepare(
+        `UPDATE task_statuses
+         SET name = ?, color = ?, position = ?, is_done = ?, is_archived = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE project_id = ? AND id = ?`,
+      )
+        .bind(patch.name, patch.color, patch.position, patch.is_done, patch.is_archived, projectId, statusId)
         .run();
     },
   };

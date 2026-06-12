@@ -1,4 +1,4 @@
-export type TaskStatus = "todo" | "in_progress" | "review" | "done" | "archived";
+export type TaskStatus = string;
 
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
@@ -10,12 +10,29 @@ export const taskStatusLabels: Record<TaskStatus, string> = {
   archived: "Archived",
 };
 
+export type TaskStatusDefinition = {
+  id: string;
+  project_id: string;
+  name: string;
+  color: string;
+  position: number;
+  is_done: number;
+  is_archived: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Task = {
   id: string;
   project_id: string;
   title: string;
   description: string | null;
   status: TaskStatus;
+  status_name?: string | null;
+  status_color?: string | null;
+  status_position?: number | null;
+  status_is_done?: number | null;
+  status_is_archived?: number | null;
   priority: TaskPriority;
   assignee_user_id: string | null;
   assignee_name?: string | null;

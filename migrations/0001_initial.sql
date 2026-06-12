@@ -66,12 +66,26 @@ CREATE TABLE IF NOT EXISTS task_milestones (
   UNIQUE (project_id, name)
 );
 
+CREATE TABLE IF NOT EXISTS task_statuses (
+  id TEXT NOT NULL,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  color TEXT NOT NULL DEFAULT '#64748b',
+  position INTEGER NOT NULL DEFAULT 1,
+  is_done INTEGER NOT NULL DEFAULT 0 CHECK (is_done IN (0, 1)),
+  is_archived INTEGER NOT NULL DEFAULT 0 CHECK (is_archived IN (0, 1)),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (project_id, id),
+  UNIQUE (project_id, name)
+);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY,
   project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   description TEXT,
-  status TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'review', 'done', 'archived')),
+  status TEXT NOT NULL DEFAULT 'todo',
   priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
   assignee_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
   category_id TEXT REFERENCES task_categories(id) ON DELETE SET NULL,
@@ -94,6 +108,7 @@ CREATE INDEX IF NOT EXISTS tasks_due_idx ON tasks(due_on);
 CREATE INDEX IF NOT EXISTS tasks_category_idx ON tasks(category_id);
 CREATE INDEX IF NOT EXISTS tasks_milestone_idx ON tasks(milestone_id);
 CREATE INDEX IF NOT EXISTS tasks_assignee_idx ON tasks(assignee_user_id);
+CREATE INDEX IF NOT EXISTS task_statuses_project_position_idx ON task_statuses(project_id, position);
 
 CREATE TABLE IF NOT EXISTS task_dependencies (
   task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -306,6 +321,14 @@ INSERT OR IGNORE INTO task_milestones (id, project_id, name, due_on)
 VALUES
   ('ms_mvp', 'prj_launch', 'MVP', '2026-07-15'),
   ('ms_integrations', 'prj_launch', 'Integrations', '2026-07-01');
+
+INSERT OR IGNORE INTO task_statuses (id, project_id, name, color, position, is_done, is_archived)
+VALUES
+  ('todo', 'prj_launch', 'Todo', '#64748b', 1, 0, 0),
+  ('in_progress', 'prj_launch', 'In Progress', '#2563eb', 2, 0, 0),
+  ('review', 'prj_launch', 'Review', '#d97706', 3, 0, 0),
+  ('done', 'prj_launch', 'Done', '#16a34a', 4, 1, 0),
+  ('archived', 'prj_launch', 'Archived', '#6b7280', 5, 0, 1);
 
 INSERT OR IGNORE INTO tasks (
   id, project_id, title, description, status, priority, assignee_user_id, category_id,

@@ -45,6 +45,9 @@ export type Messages = {
   overview: {
     tasks: string;
     taskCount: (count: number) => string;
+    taskView: string;
+    listView: string;
+    boardView: string;
     noDescription: string;
     create: string;
     createMeta: string;
@@ -75,6 +78,14 @@ export type Messages = {
     uploadMedia: string;
     emptyMedia: string;
     insertMedia: string;
+    statuses: string;
+    statusCount: (count: number) => string;
+    statusName: string;
+    statusColor: string;
+    statusPosition: string;
+    newStatus: string;
+    doneStatus: string;
+    emptyStatus: string;
   };
   plan: {
     timeline: string;
@@ -236,6 +247,9 @@ const en: Messages = {
   overview: {
     tasks: "Tasks",
     taskCount: (count) => `${count} tasks`,
+    taskView: "Task view",
+    listView: "List",
+    boardView: "Board",
     noDescription: "No description",
     create: "Create",
     createMeta: "project / task",
@@ -266,6 +280,14 @@ const en: Messages = {
     uploadMedia: "Upload media",
     emptyMedia: "No media yet.",
     insertMedia: "Insert",
+    statuses: "Statuses",
+    statusCount: (count) => `${count} statuses`,
+    statusName: "Status name",
+    statusColor: "Status color",
+    statusPosition: "Position",
+    newStatus: "New status",
+    doneStatus: "Done",
+    emptyStatus: "No tasks",
   },
   plan: {
     timeline: "Timeline",
@@ -937,6 +959,9 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
     overview: {
       tasks: "タスク",
       taskCount: (count) => `${count} 件`,
+      taskView: "タスク表示",
+      listView: "リスト",
+      boardView: "ボード",
       noDescription: "説明なし",
       create: "作成",
       createMeta: "プロジェクト / タスク",
@@ -967,6 +992,14 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       uploadMedia: "メディアをアップロード",
       emptyMedia: "メディアはまだありません。",
       insertMedia: "挿入",
+      statuses: "ステータス",
+      statusCount: (count) => `${count} 件`,
+      statusName: "ステータス名",
+      statusColor: "ステータス色",
+      statusPosition: "並び順",
+      newStatus: "新しいステータス",
+      doneStatus: "完了扱い",
+      emptyStatus: "タスクなし",
     },
     plan: {
       timeline: "タイムライン",
@@ -1598,7 +1631,7 @@ function mergeMessages(base: Messages, override: MessageOverrides | undefined): 
     ...base,
     ...override,
     tabs: { ...base.tabs, ...override.tabs },
-    status: { ...base.status, ...override.status },
+    status: { ...base.status, ...override.status } as Record<string, string>,
     priority: { ...base.priority, ...override.priority },
     metrics: { ...base.metrics, ...override.metrics },
     overview: { ...base.overview, ...override.overview },

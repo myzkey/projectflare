@@ -319,6 +319,36 @@ button {
   gap: 8px;
 }
 
+.segmented-control {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid var(--line);
+  background: var(--field);
+  margin-bottom: 10px;
+  padding: 0;
+}
+
+.segmented-control button {
+  min-height: 34px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+}
+
+.segmented-control button:last-child {
+  border-right: 0;
+}
+
+.segmented-control button.active {
+  background: var(--ink);
+  color: white;
+}
+
 .task-row {
   display: grid;
   grid-template-columns: minmax(260px, 1fr) 142px 112px 150px;
@@ -328,6 +358,7 @@ button {
   border: 1px solid var(--line);
   background: rgba(244, 247, 239, 0.65);
   padding: 10px;
+  border-left: 4px solid var(--status-color, var(--line));
 }
 
 .task-row.selected {
@@ -365,6 +396,110 @@ button {
   color: var(--muted);
   padding: 2px 6px;
   line-height: 1.3;
+}
+
+.task-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.board-column {
+  border: 1px solid var(--line);
+  background: rgba(255, 254, 248, 0.72);
+  min-height: 220px;
+}
+
+.board-column header {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  min-height: 38px;
+  border-bottom: 1px solid var(--line);
+  padding: 8px;
+}
+
+.board-column header span {
+  width: 8px;
+  height: 22px;
+  background: var(--status-color);
+}
+
+.board-stack,
+.status-list {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+}
+
+.board-card {
+  border: 1px solid var(--line);
+  background: rgba(244, 247, 239, 0.68);
+  padding: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.board-card.selected {
+  border-color: var(--ink);
+  box-shadow: 2px 2px 0 var(--ink);
+}
+
+.board-card > button {
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+  text-align: left;
+  display: grid;
+  gap: 3px;
+}
+
+.board-card > button small {
+  color: var(--muted);
+}
+
+.board-card-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px;
+  gap: 8px;
+  align-items: center;
+}
+
+.status-panel {
+  align-content: start;
+}
+
+.status-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 70px auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.status-row input[type="color"],
+.status-create input[type="color"] {
+  padding: 3px;
+}
+
+.status-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.status-row label input {
+  width: auto;
+  min-height: auto;
+}
+
+.status-create {
+  grid-template-columns: 42px minmax(0, 1fr) 46px;
 }
 
 input,
@@ -531,6 +666,18 @@ button[type="submit"] {
   justify-content: center;
   align-items: center;
   gap: 8px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .form-grid,

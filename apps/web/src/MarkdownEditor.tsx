@@ -118,7 +118,7 @@ export function MarkdownEditor(props: {
           }}
         />
         <MarkdownSnippetPlugin name={props.name} onMarkdownChange={setMarkdown} />
-        <MediaPastePlugin onUploadFiles={props.onUploadFiles} />
+        <MediaPastePlugin onUploadFiles={props.onUploadFiles} onMarkdownChange={setMarkdown} />
         <FormResetPlugin markdown={initialMarkdown} onReset={setMarkdown} />
       </LexicalComposer>
     </div>
@@ -245,7 +245,10 @@ function insertMarkdownText(markdown: string) {
   $getRoot().append(paragraph);
 }
 
-function MediaPastePlugin(props: { onUploadFiles?: (files: File[]) => Promise<string[]> }) {
+function MediaPastePlugin(props: {
+  onUploadFiles?: (files: File[]) => Promise<string[]>;
+  onMarkdownChange(markdown: string): void;
+}) {
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
@@ -256,7 +259,9 @@ function MediaPastePlugin(props: { onUploadFiles?: (files: File[]) => Promise<st
     const uploadAndInsert = async (files: File[]) => {
       const markdownSnippets = await props.onUploadFiles?.(files);
       for (const markdown of markdownSnippets ?? []) {
-        editor.dispatchCommand(INSERT_MARKDOWN_SNIPPET_COMMAND, markdown);
+        editor.update(() => insertMarkdownText(markdown), {
+          onUpdate: () => syncMarkdownState(editor, props.onMarkdownChange),
+        });
       }
     };
 

@@ -5,6 +5,7 @@ import {
   normalizeTags,
   type Task,
   type TaskStatus,
+  type TaskStatusDefinition,
   taskStatusLabels,
 } from "../../domain/task";
 import type { TaskCreateInput, TaskUpdateInput, TaskUseCasePorts } from "../../ports/tasks";
@@ -15,7 +16,74 @@ export async function listProjectTasksUseCase(projectId: string, ports: TaskUseC
   return ports.tasks.listByProjectId(projectId);
 }
 
+export async function listTaskStatusesUseCase(
+  projectId: string,
+  ports: TaskUseCasePorts,
+): Promise<TaskStatusDefinition[]> {
+  const statuses = await ports.tasks.listStatuses(projectId);
+  return statuses.length ? statuses : defaultTaskStatuses(projectId, ports.clock.now());
+}
+
+export async function createTaskStatusUseCase(
+  input: {
+    projectId: string;
+    name?: string | null;
+    color?: string | null;
+    isDone?: boolean | null;
+    isArchived?: boolean | null;
+  },
+  ports: TaskUseCasePorts,
+): Promise<TaskStatusDefinition> {
+  const statuses = await listTaskStatusesUseCase(input.projectId, ports);
+  const status: TaskStatusDefinition = {
+    id: ports.ids.create(),
+    project_id: input.projectId,
+    name: input.name?.trim() || "New status",
+    color: normalizeColor(input.color),
+    position: statuses.length ? Math.max(...statuses.map((item) => item.position)) + 1 : 1,
+    is_done: input.isDone ? 1 : 0,
+    is_archived: input.isArchived ? 1 : 0,
+    created_at: ports.clock.now(),
+    updated_at: ports.clock.now(),
+  };
+
+  await ports.tasks.createStatus(status);
+  return status;
+}
+
+export async function updateTaskStatusUseCase(
+  input: {
+    projectId: string;
+    statusId: string;
+    name?: string | null;
+    color?: string | null;
+    position?: number | null;
+    isDone?: boolean | null;
+    isArchived?: boolean | null;
+  },
+  ports: TaskUseCasePorts,
+): Promise<TaskStatusDefinition> {
+  const statuses = await listTaskStatusesUseCase(input.projectId, ports);
+  const existing = statuses.find((status) => status.id === input.statusId);
+  if (!existing) throw new ApplicationError("task_status_not_found", 404);
+
+  await ports.tasks.updateStatus(input.projectId, input.statusId, {
+    name: input.name?.trim() || existing.name,
+    color: normalizeColor(input.color ?? existing.color),
+    position: Math.max(1, Math.round(input.position ?? existing.position)),
+    is_done: (input.isDone ?? Boolean(existing.is_done)) ? 1 : 0,
+    is_archived: (input.isArchived ?? Boolean(existing.is_archived)) ? 1 : 0,
+  });
+
+  const updated = (await listTaskStatusesUseCase(input.projectId, ports)).find(
+    (status) => status.id === input.statusId,
+  );
+  if (!updated) throw new ApplicationError("task_status_not_found", 404);
+  return updated;
+}
+
 export async function createProjectTaskUseCase(input: TaskCreateInput, ports: TaskUseCasePorts): Promise<Task> {
+  const statuses = await listTaskStatusesUseCase(input.projectId, ports);
   const parentTaskId = normalizeParentTaskId(input.parentTaskId);
   if (parentTaskId) {
     const projectTasks = await ports.tasks.listByProjectId(input.projectId);
@@ -32,7 +100,7 @@ export async function createProjectTaskUseCase(input: TaskCreateInput, ports: Ta
     projectId: input.projectId,
     title: input.title,
     description: input.description,
-    status: normalizeStatus(input.status),
+    status: normalizeStatus(input.status, statuses),
     priority: input.priority,
     assigneeUserId: input.assigneeUserId,
     startsOn: input.startsOn,
@@ -60,6 +128,7 @@ export async function updateTaskUseCase(
 ): Promise<Task> {
   const existing = await ports.tasks.findById(taskId);
   if (!existing) throw new ApplicationError("task_not_found", 404);
+  const statuses = await listTaskStatusesUseCase(existing.project_id, ports);
 
   const hasParentUpdate = Object.hasOwn(input, "parentTaskId");
   const hasAssigneeUpdate = Object.hasOwn(input, "assigneeUserId");
@@ -80,7 +149,7 @@ export async function updateTaskUseCase(
   await ports.tasks.update(taskId, {
     title: input.title?.trim() || existing.title,
     description: input.description ?? existing.description,
-    status: normalizeStatus(input.status) ?? existing.status,
+    status: normalizeStatus(input.status, statuses) ?? existing.status,
     priority: input.priority ? normalizePriority(input.priority) : existing.priority,
     assignee_user_id: hasAssigneeUpdate ? normalizeOptionalId(input.assigneeUserId) : existing.assignee_user_id,
     starts_on: input.startsOn ?? existing.starts_on,
@@ -97,8 +166,34 @@ export async function updateTaskUseCase(
   return updated;
 }
 
-function normalizeStatus(value: string | null | undefined): TaskStatus | undefined {
-  return value && value in taskStatusLabels ? (value as TaskStatus) : undefined;
+function normalizeStatus(value: string | null | undefined, statuses: TaskStatusDefinition[]): TaskStatus | undefined {
+  if (value && statuses.some((status) => status.id === value)) return value;
+  if (value && value in taskStatusLabels) return value;
+  return statuses[0]?.id;
+}
+
+function defaultTaskStatuses(projectId: string, now: string): TaskStatusDefinition[] {
+  return [
+    ["todo", "Todo", "#64748b", 1, 0, 0],
+    ["in_progress", "In Progress", "#2563eb", 2, 0, 0],
+    ["review", "Review", "#d97706", 3, 0, 0],
+    ["done", "Done", "#16a34a", 4, 1, 0],
+    ["archived", "Archived", "#6b7280", 5, 0, 1],
+  ].map(([id, name, color, position, isDone, isArchived]) => ({
+    id: String(id),
+    project_id: projectId,
+    name: String(name),
+    color: String(color),
+    position: Number(position),
+    is_done: Number(isDone),
+    is_archived: Number(isArchived),
+    created_at: now,
+    updated_at: now,
+  }));
+}
+
+function normalizeColor(value: string | null | undefined) {
+  return /^#[0-9a-f]{6}$/i.test(value ?? "") ? String(value) : "#64748b";
 }
 
 function clampProgress(value: number): number {

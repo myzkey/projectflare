@@ -36,6 +36,11 @@ test("creates a task and adds a comment", async ({ page }) => {
   await expect(page.locator(".task-row").filter({ hasText: childTitle })).toBeVisible();
   await taskRow.getByRole("button", { name: taskTitle }).click();
 
+  await page.getByRole("button", { name: "Board" }).click();
+  await expect(page.locator(".board-column").filter({ hasText: "Todo" }).first()).toBeVisible();
+  await expect(page.locator(".board-card").filter({ hasText: taskTitle }).first()).toBeVisible();
+  await page.getByRole("button", { name: "List", exact: true }).click();
+
   await page.getByLabel("Write a comment").fill(commentBody);
   await page.locator(".comment-panel .inline-form button[type='submit']").click();
 
@@ -54,8 +59,11 @@ test("creates a task and adds a comment", async ({ page }) => {
   await expect(page.locator(".comment").filter({ hasText: "task-image.png" }).first()).toBeVisible();
 
   await pasteMedia(page, page.getByLabel("Write a comment"), "pasted-task.png");
-  await expect(page.locator(".attachment-card").filter({ hasText: "pasted-task.png" }).first()).toBeVisible();
+  const pastedTaskAttachment = page.locator(".attachment-card").filter({ hasText: "pasted-task.png" }).first();
+  await expect(pastedTaskAttachment).toBeVisible();
+  await pastedTaskAttachment.getByRole("button", { name: "Insert" }).click();
   await expect(page.getByLabel("Write a comment")).toContainText("pasted-task.png");
+  await expect(page.locator(".comment-panel input[name='body']")).toHaveValue(/pasted-task\.png/);
   await page.locator(".comment-panel .inline-form button[type='submit']").click();
   await expect(page.locator(".comment").filter({ hasText: "pasted-task.png" }).first()).toBeVisible();
 });

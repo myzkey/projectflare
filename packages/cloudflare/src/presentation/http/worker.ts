@@ -40,7 +40,10 @@ import {
 } from "../../../../core/src/application/usecases/manage-task-collaboration";
 import {
   createProjectTaskUseCase,
+  createTaskStatusUseCase,
   listProjectTasksUseCase,
+  listTaskStatusesUseCase,
+  updateTaskStatusUseCase,
   updateTaskUseCase,
 } from "../../../../core/src/application/usecases/manage-tasks";
 import {
@@ -180,6 +183,15 @@ export default {
         const projectId = path.split("/")[3];
         if (request.method === "GET") return json(await listTasks(env, projectId));
         if (request.method === "POST") return json(await createTask(request, env, projectId), 201);
+      }
+      if (path.match(/^\/api\/projects\/[^/]+\/statuses$/)) {
+        const projectId = path.split("/")[3];
+        if (request.method === "GET") return json(await listTaskStatuses(env, projectId));
+        if (request.method === "POST") return json(await createTaskStatus(request, env, projectId), 201);
+      }
+      if (path.match(/^\/api\/projects\/[^/]+\/statuses\/[^/]+$/) && request.method === "PATCH") {
+        const [, , , projectId, , statusId] = path.split("/");
+        return json(await updateTaskStatus(request, env, projectId, decodeURIComponent(statusId)));
       }
       if (path.match(/^\/api\/projects\/[^/]+\/dependencies$/) && request.method === "GET") {
         const projectId = path.split("/")[3];
@@ -498,6 +510,55 @@ async function markNotificationRead(env: Env, notificationId: string) {
 async function listTasks(env: Env, projectId: string) {
   const tasks = await listProjectTasksUseCase(projectId, createTaskUseCasePorts(env));
   return tasks.length ? tasks : demoTasks().filter((task) => task.project_id === projectId);
+}
+
+async function listTaskStatuses(env: Env, projectId: string) {
+  return listTaskStatusesUseCase(projectId, createTaskUseCasePorts(env));
+}
+
+async function createTaskStatus(request: Request, env: Env, projectId: string) {
+  const body = await request.json<{
+    name?: string | null;
+    color?: string | null;
+    isDone?: boolean | null;
+    isArchived?: boolean | null;
+    is_done?: boolean | null;
+    is_archived?: boolean | null;
+  }>();
+  return createTaskStatusUseCase(
+    {
+      projectId,
+      name: body.name,
+      color: body.color,
+      isDone: body.isDone ?? body.is_done,
+      isArchived: body.isArchived ?? body.is_archived,
+    },
+    createTaskUseCasePorts(env),
+  );
+}
+
+async function updateTaskStatus(request: Request, env: Env, projectId: string, statusId: string) {
+  const body = await request.json<{
+    name?: string | null;
+    color?: string | null;
+    position?: number | null;
+    isDone?: boolean | null;
+    isArchived?: boolean | null;
+    is_done?: boolean | null;
+    is_archived?: boolean | null;
+  }>();
+  return updateTaskStatusUseCase(
+    {
+      projectId,
+      statusId,
+      name: body.name,
+      color: body.color,
+      position: body.position,
+      isDone: body.isDone ?? body.is_done,
+      isArchived: body.isArchived ?? body.is_archived,
+    },
+    createTaskUseCasePorts(env),
+  );
 }
 
 async function listWikiPages(env: Env, projectId: string) {

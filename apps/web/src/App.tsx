@@ -22,6 +22,7 @@ import type {
   Task,
   TaskComment,
   TaskDependency,
+  TaskStatusDefinition,
   WebhookEndpoint,
   WikiPage,
   WikiRevision,
@@ -42,6 +43,7 @@ export function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskStatuses, setTaskStatuses] = useState<TaskStatusDefinition[]>([]);
   const [dependencies, setDependencies] = useState<TaskDependency[]>([]);
   const [comments, setComments] = useState<TaskComment[]>([]);
   const [commentLimit, setCommentLimit] = useState(initialCommentLimit);
@@ -71,14 +73,17 @@ export function App() {
   const messages = dictionaries[locale];
 
   const stats = useMemo(() => {
-    const open = tasks.filter((task) => !["done", "archived"].includes(task.status)).length;
-    const review = tasks.filter((task) => task.status === "review").length;
-    const done = tasks.filter((task) => task.status === "done").length;
+    const doneStatuses = new Set(taskStatuses.filter((status) => status.is_done).map((status) => status.id));
+    const archivedStatuses = new Set(taskStatuses.filter((status) => status.is_archived).map((status) => status.id));
+    const reviewStatus = taskStatuses.find((status) => status.id === "review" || /review/i.test(status.name));
+    const open = tasks.filter((task) => !doneStatuses.has(task.status) && !archivedStatuses.has(task.status)).length;
+    const review = tasks.filter((task) => task.status === reviewStatus?.id).length;
+    const done = tasks.filter((task) => doneStatuses.has(task.status)).length;
     const overdue = tasks.filter(
-      (task) => task.due_on && task.status !== "done" && new Date(task.due_on) < new Date(),
+      (task) => task.due_on && !doneStatuses.has(task.status) && new Date(task.due_on) < new Date(),
     ).length;
     return { open, review, done, overdue };
-  }, [tasks]);
+  }, [tasks, taskStatuses]);
 
   useEffect(() => {
     void boot();
@@ -158,6 +163,7 @@ export function App() {
   async function refreshProject(workspaceId = workspace?.id, currentProject = project) {
     if (!workspaceId || !currentProject) return;
     const [
+      nextStatuses,
       nextTasks,
       nextDependencies,
       nextWiki,
@@ -167,6 +173,7 @@ export function App() {
       nextChannels,
       nextNotifications,
     ] = await Promise.all([
+      api.taskStatuses(currentProject.id),
       api.tasks(currentProject.id),
       api.projectDependencies(currentProject.id),
       api.wikiPages(currentProject.id),
@@ -177,6 +184,7 @@ export function App() {
       api.notifications(currentProject.id),
     ]);
 
+    setTaskStatuses(nextStatuses);
     setTasks(nextTasks);
     setDependencies(nextDependencies);
     setWikiPages(nextWiki);
@@ -233,6 +241,31 @@ export function App() {
   async function saveTask(task: Task, patch: Partial<Task>) {
     await run(async () => {
       await api.updateTask(task.id, patch);
+      await refreshProject();
+    });
+  }
+
+  async function createTaskStatus(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!project) return;
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    await run(async () => {
+      await api.createTaskStatus(project.id, {
+        name: data.get("name"),
+        color: data.get("color"),
+        isDone: data.get("isDone") === "on",
+        isArchived: data.get("isArchived") === "on",
+      });
+      form.reset();
+      await refreshProject();
+    });
+  }
+
+  async function saveTaskStatus(status: TaskStatusDefinition, patch: Partial<TaskStatusDefinition>) {
+    if (!project) return;
+    await run(async () => {
+      await api.updateTaskStatus(project.id, status.id, patch);
       await refreshProject();
     });
   }
@@ -502,11 +535,14 @@ export function App() {
           <Overview
             stats={stats}
             tasks={tasks}
+            statuses={taskStatuses}
             selectedTask={selectedTask}
             comments={comments}
             attachments={taskAttachments}
             onSelectTask={setSelectedTaskId}
             onSaveTask={saveTask}
+            onCreateStatus={createTaskStatus}
+            onSaveStatus={saveTaskStatus}
             onCreateTask={createTask}
             onCreateProject={createProject}
             onCreateComment={createComment}

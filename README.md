@@ -21,7 +21,8 @@ ProjectFlare is not trying to replace Jira, Linear, Notion, Redmine, or OpenProj
 
 - Manage workspaces and projects from a Cloudflare-hosted admin UI
 - Create tasks with status, priority, assignee, category, tags, milestone, dates, progress, and parent task
-- Track nested tasks, dependencies, status metrics, and a simple gantt-style planning view
+- Manage project-specific task statuses with color, order, and done/archive semantics
+- Track nested tasks, dependencies, status metrics, kanban-style boards, and a simple gantt-style planning view
 - Add latest-first task comments with bounded loading and expandable long text
 - Write task descriptions, task comments, and wiki pages with a Markdown-backed rich editor
 - Upload images and lightweight videos to tasks and wiki pages

@@ -25,6 +25,32 @@ function createPorts(seedTasks: Task[] = []) {
         if (!existing) return;
         tasks.set(id, { ...existing, ...patch });
       }),
+      listStatuses: vi.fn(async (projectId) => [
+        {
+          id: "todo",
+          project_id: projectId,
+          name: "Todo",
+          color: "#64748b",
+          position: 1,
+          is_done: 0,
+          is_archived: 0,
+          created_at: "2026-06-11T00:00:00.000Z",
+          updated_at: "2026-06-11T00:00:00.000Z",
+        },
+        {
+          id: "review",
+          project_id: projectId,
+          name: "Review",
+          color: "#d97706",
+          position: 2,
+          is_done: 0,
+          is_archived: 0,
+          created_at: "2026-06-11T00:00:00.000Z",
+          updated_at: "2026-06-11T00:00:00.000Z",
+        },
+      ]),
+      createStatus: vi.fn(async () => undefined),
+      updateStatus: vi.fn(async () => undefined),
     },
   };
 

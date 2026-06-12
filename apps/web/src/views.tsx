@@ -2,6 +2,7 @@ import {
   Bell,
   BookOpenText,
   CheckCircle2,
+  Columns3,
   Copy,
   GitBranch,
   GitPullRequest,
@@ -32,6 +33,7 @@ import type {
   TaskDependency,
   TaskPriority,
   TaskStatus,
+  TaskStatusDefinition,
   WebhookEndpoint,
   WikiPage,
   WikiRevision,
@@ -49,7 +51,6 @@ import {
 
 const MarkdownEditor = lazy(() => import("./MarkdownEditor"));
 
-const statuses: TaskStatus[] = ["todo", "in_progress", "review", "done", "archived"];
 const priorities: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
 export type TaskStats = { open: number; review: number; done: number; overdue: number };
@@ -57,11 +58,14 @@ export type TaskStats = { open: number; review: number; done: number; overdue: n
 export function Overview(props: {
   stats: TaskStats;
   tasks: Task[];
+  statuses: TaskStatusDefinition[];
   selectedTask: Task | null;
   comments: TaskComment[];
   attachments: Attachment[];
   onSelectTask(id: string): void;
   onSaveTask(task: Task, patch: Partial<Task>): Promise<void>;
+  onCreateStatus(event: FormEvent<HTMLFormElement>): Promise<void>;
+  onSaveStatus(status: TaskStatusDefinition, patch: Partial<TaskStatusDefinition>): Promise<void>;
   onCreateTask(event: FormEvent<HTMLFormElement>): Promise<void>;
   onCreateProject(event: FormEvent<HTMLFormElement>): Promise<void>;
   onCreateComment(event: FormEvent<HTMLFormElement>): Promise<void>;
@@ -77,6 +81,7 @@ export function Overview(props: {
   const categoryNames = useMemo(() => uniqueTaskValues(props.tasks, "category_name"), [props.tasks]);
   const milestoneNames = useMemo(() => uniqueTaskValues(props.tasks, "milestone_name"), [props.tasks]);
   const assigneeNames = useMemo(() => uniqueTaskValues(props.tasks, "assignee_name"), [props.tasks]);
+  const [taskView, setTaskView] = useState<"list" | "board">("list");
 
   return (
     <section className="dashboard-grid">
@@ -97,44 +102,36 @@ export function Overview(props: {
           title={props.messages.overview.tasks}
           meta={props.messages.overview.taskCount(props.tasks.length)}
         />
-        <div className="task-table">
-          {visibleTasks.map(({ task, depth }) => (
-            <article
-              key={task.id}
-              className={props.selectedTask?.id === task.id ? "task-row selected" : "task-row"}
-              style={{ "--task-depth": depth } as CSSProperties}
-            >
-              <button type="button" className="task-name" onClick={() => props.onSelectTask(task.id)}>
-                <strong>{task.title}</strong>
-                <span>{task.description || props.messages.overview.noDescription}</span>
-                <TaskChips task={task} />
-              </button>
-              <select
-                defaultValue={task.status}
-                onChange={(event) => void props.onSaveTask(task, { status: event.currentTarget.value as TaskStatus })}
-              >
-                {statuses.map((status) => (
-                  <option key={status} value={status}>
-                    {props.messages.status[status]}
-                  </option>
-                ))}
-              </select>
-              <select
-                defaultValue={task.priority}
-                onChange={(event) =>
-                  void props.onSaveTask(task, { priority: event.currentTarget.value as TaskPriority })
-                }
-              >
-                {priorities.map((priority) => (
-                  <option key={priority} value={priority}>
-                    {props.messages.priority[priority]}
-                  </option>
-                ))}
-              </select>
-              <Progress value={task.progress} />
-            </article>
-          ))}
-        </div>
+        <fieldset className="segmented-control">
+          <legend className="visually-hidden">{props.messages.overview.taskView}</legend>
+          <button type="button" className={taskView === "list" ? "active" : ""} onClick={() => setTaskView("list")}>
+            <CheckCircle2 size={15} />
+            {props.messages.overview.listView}
+          </button>
+          <button type="button" className={taskView === "board" ? "active" : ""} onClick={() => setTaskView("board")}>
+            <Columns3 size={15} />
+            {props.messages.overview.boardView}
+          </button>
+        </fieldset>
+        {taskView === "list" ? (
+          <TaskList
+            tasks={visibleTasks}
+            statuses={props.statuses}
+            selectedTask={props.selectedTask}
+            onSelectTask={props.onSelectTask}
+            onSaveTask={props.onSaveTask}
+            messages={props.messages}
+          />
+        ) : (
+          <TaskBoard
+            tasks={props.tasks}
+            statuses={props.statuses}
+            selectedTask={props.selectedTask}
+            onSelectTask={props.onSelectTask}
+            onSaveTask={props.onSaveTask}
+            messages={props.messages}
+          />
+        )}
       </section>
 
       <aside className="panel side-stack">
@@ -205,6 +202,55 @@ export function Overview(props: {
           <button type="submit">
             <Plus size={16} />
             {props.messages.overview.addProject}
+          </button>
+        </form>
+      </aside>
+
+      <aside className="panel status-panel">
+        <PanelTitle
+          icon={<Columns3 size={18} />}
+          title={props.messages.overview.statuses}
+          meta={props.messages.overview.statusCount(props.statuses.length)}
+        />
+        <div className="status-list">
+          {props.statuses.map((status) => (
+            <article key={status.id} className="status-row">
+              <input
+                type="color"
+                aria-label={props.messages.overview.statusColor}
+                defaultValue={status.color}
+                onBlur={(event) => void props.onSaveStatus(status, { color: event.currentTarget.value })}
+              />
+              <input
+                aria-label={props.messages.overview.statusName}
+                defaultValue={status.name}
+                onBlur={(event) => void props.onSaveStatus(status, { name: event.currentTarget.value })}
+              />
+              <input
+                type="number"
+                min="1"
+                aria-label={props.messages.overview.statusPosition}
+                defaultValue={status.position}
+                onBlur={(event) => void props.onSaveStatus(status, { position: Number(event.currentTarget.value) })}
+              />
+              <label>
+                <input
+                  type="checkbox"
+                  defaultChecked={Boolean(status.is_done)}
+                  onChange={(event) =>
+                    void props.onSaveStatus(status, { is_done: event.currentTarget.checked ? 1 : 0 })
+                  }
+                />
+                {props.messages.overview.doneStatus}
+              </label>
+            </article>
+          ))}
+        </div>
+        <form className="inline-form status-create" onSubmit={(event) => void props.onCreateStatus(event)}>
+          <input name="color" type="color" aria-label={props.messages.overview.statusColor} defaultValue="#64748b" />
+          <input name="name" placeholder={props.messages.overview.newStatus} required />
+          <button type="submit">
+            <Plus size={16} />
           </button>
         </form>
       </aside>
@@ -355,6 +401,119 @@ export function Plan(props: {
       </aside>
     </section>
   );
+}
+
+function TaskList(props: {
+  tasks: Array<{ task: Task; depth: number }>;
+  statuses: TaskStatusDefinition[];
+  selectedTask: Task | null;
+  onSelectTask(id: string): void;
+  onSaveTask(task: Task, patch: Partial<Task>): Promise<void>;
+  messages: Messages;
+}) {
+  return (
+    <div className="task-table">
+      {props.tasks.map(({ task, depth }) => (
+        <article
+          key={task.id}
+          className={props.selectedTask?.id === task.id ? "task-row selected" : "task-row"}
+          style={{ "--task-depth": depth, "--status-color": statusColor(task, props.statuses) } as CSSProperties}
+        >
+          <button type="button" className="task-name" onClick={() => props.onSelectTask(task.id)}>
+            <strong>{task.title}</strong>
+            <span>{task.description || props.messages.overview.noDescription}</span>
+            <TaskChips task={task} />
+          </button>
+          <StatusSelect task={task} statuses={props.statuses} onSaveTask={props.onSaveTask} messages={props.messages} />
+          <select
+            defaultValue={task.priority}
+            onChange={(event) => void props.onSaveTask(task, { priority: event.currentTarget.value as TaskPriority })}
+          >
+            {priorities.map((priority) => (
+              <option key={priority} value={priority}>
+                {props.messages.priority[priority]}
+              </option>
+            ))}
+          </select>
+          <Progress value={task.progress} />
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function TaskBoard(props: {
+  tasks: Task[];
+  statuses: TaskStatusDefinition[];
+  selectedTask: Task | null;
+  onSelectTask(id: string): void;
+  onSaveTask(task: Task, patch: Partial<Task>): Promise<void>;
+  messages: Messages;
+}) {
+  return (
+    <div className="task-board">
+      {props.statuses.map((status) => {
+        const tasks = props.tasks.filter((task) => task.status === status.id);
+        return (
+          <section key={status.id} className="board-column" style={{ "--status-color": status.color } as CSSProperties}>
+            <header>
+              <span />
+              <strong>{status.name}</strong>
+              <small>{tasks.length}</small>
+            </header>
+            <div className="board-stack">
+              {tasks.map((task) => (
+                <article
+                  key={task.id}
+                  className={props.selectedTask?.id === task.id ? "board-card selected" : "board-card"}
+                >
+                  <button type="button" onClick={() => props.onSelectTask(task.id)}>
+                    <strong>{task.title}</strong>
+                    <small>{task.assignee_name || task.category_name || props.messages.overview.noDescription}</small>
+                  </button>
+                  <TaskChips task={task} />
+                  <div className="board-card-footer">
+                    <StatusSelect
+                      task={task}
+                      statuses={props.statuses}
+                      onSaveTask={props.onSaveTask}
+                      messages={props.messages}
+                    />
+                    <Progress value={task.progress} />
+                  </div>
+                </article>
+              ))}
+              {!tasks.length && <p className="empty">{props.messages.overview.emptyStatus}</p>}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function StatusSelect(props: {
+  task: Task;
+  statuses: TaskStatusDefinition[];
+  onSaveTask(task: Task, patch: Partial<Task>): Promise<void>;
+  messages: Messages;
+}) {
+  return (
+    <select
+      defaultValue={props.task.status}
+      onChange={(event) => void props.onSaveTask(props.task, { status: event.currentTarget.value as TaskStatus })}
+    >
+      {props.statuses.map((status) => (
+        <option key={status.id} value={status.id}>
+          {status.name || props.messages.status[status.id]}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function statusColor(task: Task, statuses: TaskStatusDefinition[]) {
+  return statuses.find((status) => status.id === task.status)?.color ?? "#64748b";
 }
 
 export function Wiki(props: {
