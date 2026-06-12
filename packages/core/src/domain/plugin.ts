@@ -1,13 +1,19 @@
 export type PluginCapability =
   | "tasks:read"
   | "tasks:write"
+  | "tasks:assign"
   | "projects:read"
+  | "projects:write"
   | "notifications:write"
   | "webhooks:receive"
+  | "webhooks:send"
   | "network:request"
   | "storage:kv"
+  | "settings:read"
+  | "settings:write"
   | "hooks.lifecycle:register"
   | "hooks.tasks:register"
+  | "hooks.notifications:register"
   | "routes:register";
 
 export type PluginHookName = "plugin:install" | "plugin:activate" | "plugin:deactivate" | "task:created";
@@ -36,6 +42,7 @@ export type PluginDescriptor = {
   hooks?: PluginHookName[];
   routes?: PluginRouteDescriptor[];
   storage?: PluginStorageCollectionDescriptor[];
+  settingsSchema?: Record<string, unknown>;
 };
 
 export type InstalledPlugin = {
@@ -105,4 +112,19 @@ export function hasCapabilities(
   requestedCapabilities: PluginCapability[],
 ): boolean {
   return requestedCapabilities.every((capability) => approvedCapabilities.includes(capability));
+}
+
+export function validatePluginDescriptor(descriptor: PluginDescriptor): void {
+  assertValidPluginId(descriptor.id);
+  if (!descriptor.name.trim()) throw new Error("plugin_name_required");
+  if (!descriptor.version.trim()) throw new Error("plugin_version_required");
+  if (!descriptor.entrypoint.trim()) throw new Error("plugin_entrypoint_required");
+  const capabilities = new Set(descriptor.capabilities);
+  for (const route of descriptor.routes ?? []) {
+    if (!capabilities.has("routes:register")) throw new Error("plugin_route_capability_required");
+    if (!route.name.trim()) throw new Error("plugin_route_name_required");
+  }
+  if ((descriptor.hooks ?? []).length && ![...capabilities].some((capability) => capability.startsWith("hooks."))) {
+    throw new Error("plugin_hook_capability_required");
+  }
 }

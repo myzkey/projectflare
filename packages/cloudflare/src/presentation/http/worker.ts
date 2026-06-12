@@ -1,5 +1,9 @@
 import { handleGenericWebhookUseCase } from "../../../../core/src/application/usecases/handle-generic-webhook";
 import {
+  createGitHubRepositoryUseCase,
+  listGitHubRepositoriesUseCase,
+} from "../../../../core/src/application/usecases/manage-github-repositories";
+import {
   createNotificationChannelUseCase,
   listNotificationChannelsUseCase,
   listNotificationsUseCase,
@@ -15,37 +19,63 @@ import {
   setPluginEnabledUseCase,
 } from "../../../../core/src/application/usecases/manage-plugins";
 import {
+  createProjectUseCase,
+  createWorkspaceUseCase,
+  getProjectUseCase,
+  listProjectsUseCase,
+  listWorkspacesUseCase,
+  updateProjectUseCase,
+} from "../../../../core/src/application/usecases/manage-projects";
+import {
+  createTaskCommentUseCase,
+  createTaskDependencyUseCase,
+  listProjectDependenciesUseCase,
+  listTaskCommentsUseCase,
+  listTaskDependenciesUseCase,
+} from "../../../../core/src/application/usecases/manage-task-collaboration";
+import {
   createProjectTaskUseCase,
   listProjectTasksUseCase,
   updateTaskUseCase,
 } from "../../../../core/src/application/usecases/manage-tasks";
+import {
+  createWebhookEndpointUseCase,
+  listWebhookEndpointsUseCase,
+} from "../../../../core/src/application/usecases/manage-webhook-endpoints";
+import {
+  createWikiPageUseCase,
+  getWikiPageUseCase,
+  listWikiPagesUseCase,
+  listWikiRevisionsUseCase,
+  updateWikiPageUseCase,
+} from "../../../../core/src/application/usecases/manage-wiki";
 import { processGitHubWebhookUseCase } from "../../../../core/src/application/usecases/process-github-webhook";
 import { ApplicationError } from "../../../../core/src/domain/errors";
-import {
-  type GitHubRepository,
-  type GitHubWebhookPayload,
-  repositoryFullNameFromPayload,
-} from "../../../../core/src/domain/github";
+import { type GitHubWebhookPayload, repositoryFullNameFromPayload } from "../../../../core/src/domain/github";
 import type { NotificationChannel } from "../../../../core/src/domain/notification";
 import type { PluginCapability } from "../../../../core/src/domain/plugin";
 import type { Project, Workspace } from "../../../../core/src/domain/project";
-import { createApiToken, sha256Hex, verifyGitHubSignature } from "../../../../core/src/domain/security";
-import { type Task as DomainTask, normalizePriority, taskStatusLabels } from "../../../../core/src/domain/task";
-import type { WikiPage, WikiRevision } from "../../../../core/src/domain/wiki";
+import { verifyGitHubSignature } from "../../../../core/src/domain/security";
+import { type Task as DomainTask, taskStatusLabels } from "../../../../core/src/domain/task";
+import type { WikiPage } from "../../../../core/src/domain/wiki";
 import type { GitHubQueueMessage, ProjectFlareQueueMessage } from "../../../../core/src/ports/queue";
 import { createGenericWebhookPorts } from "../../infrastructure/cloudflare/d1/generic-webhook-adapter";
+import { createGitHubRepositoryUseCasePorts } from "../../infrastructure/cloudflare/d1/github-repository";
 import { createGitHubSyncPorts } from "../../infrastructure/cloudflare/d1/github-sync-adapter";
 import { createNotificationUseCasePorts } from "../../infrastructure/cloudflare/d1/notification-repository";
 import { createPluginRepository } from "../../infrastructure/cloudflare/d1/plugin-repository";
+import { createProjectUseCasePorts } from "../../infrastructure/cloudflare/d1/project-repository";
+import { createTaskCollaborationUseCasePorts } from "../../infrastructure/cloudflare/d1/task-collaboration-repository";
 import {
   resolveTaskAssigneeId,
   resolveTaskCategoryId,
   resolveTaskMilestoneId,
 } from "../../infrastructure/cloudflare/d1/task-metadata";
 import { createTaskUseCasePorts } from "../../infrastructure/cloudflare/d1/task-repository";
+import { createWebhookEndpointUseCasePorts } from "../../infrastructure/cloudflare/d1/webhook-endpoint-repository";
+import { createWikiUseCasePorts } from "../../infrastructure/cloudflare/d1/wiki-repository";
 import type { Env } from "../../infrastructure/cloudflare/env";
 import { getOrCreateAccessUser } from "../../infrastructure/cloudflare/identity/access-user";
-import { slugify } from "../../infrastructure/cloudflare/ids";
 import { createPluginCatalog, createPluginRuntime } from "../../infrastructure/cloudflare/plugins/builtin";
 import { renderApp } from "../ui/app";
 import {
@@ -60,7 +90,7 @@ import {
   demoWorkspaces,
 } from "./demo-data";
 import { htmlResponse, json, jsonError } from "./responses";
-import type { TaskComment, TaskDependency, WebhookEndpoint } from "./types";
+import type { TaskComment } from "./types";
 
 type Task = DomainTask;
 
@@ -213,43 +243,21 @@ export default {
 };
 
 async function listWorkspaces(env: Env) {
-  if (!env.DB) return demoWorkspaces();
-
-  const { results } = await env.DB.prepare(
-    `SELECT *
-     FROM workspaces
-     ORDER BY created_at DESC`,
-  ).all<Workspace>();
-
-  return results.length ? results : demoWorkspaces();
+  const workspaces = await listWorkspacesUseCase(createProjectUseCasePorts(env));
+  return workspaces.length ? workspaces : demoWorkspaces();
 }
 
 async function createWorkspace(request: Request, env: Env) {
   const user = await getOrCreateAccessUser(request, env);
   const body = await request.json<Partial<Workspace>>();
-  const name = body.name?.trim() || "Untitled workspace";
-  const workspace: Workspace = {
-    id: crypto.randomUUID(),
-    name,
-    slug: slugify(body.slug || name),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  if (!env.DB) return workspace;
-
-  await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO workspaces (id, name, slug)
-       VALUES (?, ?, ?)`,
-    ).bind(workspace.id, workspace.name, workspace.slug),
-    env.DB.prepare(
-      `INSERT INTO workspace_members (workspace_id, user_id, role)
-       VALUES (?, ?, 'owner')`,
-    ).bind(workspace.id, user.id),
-  ]);
-
-  return workspace;
+  return createWorkspaceUseCase(
+    {
+      name: body.name,
+      slug: body.slug,
+      ownerUserId: user.id,
+    },
+    createProjectUseCasePorts(env),
+  );
 }
 
 function createPluginPorts(env: Env) {
@@ -262,7 +270,9 @@ function createPluginPorts(env: Env) {
 
 async function installPlugin(request: Request, env: Env, workspaceId: string) {
   const body = await request.json<{
+    pluginId?: string;
     plugin_id?: string;
+    approvedCapabilities?: string[];
     approved_capabilities?: string[];
     settings?: Record<string, unknown> | null;
   }>();
@@ -270,8 +280,8 @@ async function installPlugin(request: Request, env: Env, workspaceId: string) {
   return installPluginUseCase(
     {
       workspaceId,
-      pluginId: body.plugin_id?.trim() || "",
-      approvedCapabilities: pluginCapabilitiesFrom(body.approved_capabilities),
+      pluginId: (body.pluginId ?? body.plugin_id)?.trim() || "",
+      approvedCapabilities: pluginCapabilitiesFrom(body.approvedCapabilities ?? body.approved_capabilities),
       settings: body.settings ?? null,
     },
     createPluginPorts(env),
@@ -310,189 +320,91 @@ function pluginCapabilitiesFrom(value: string[] | undefined): PluginCapability[]
 }
 
 async function listProjects(env: Env, workspaceId?: string) {
-  if (!env.DB) {
-    const projects = demoProjects();
-    return workspaceId ? projects.filter((project) => project.workspace_id === workspaceId) : projects;
-  }
-
-  const query = workspaceId
-    ? `SELECT p.*, w.name AS workspace_name
-       FROM projects p
-       JOIN workspaces w ON w.id = p.workspace_id
-       WHERE p.workspace_id = ?
-       ORDER BY p.created_at DESC`
-    : `SELECT p.*, w.name AS workspace_name
-       FROM projects p
-       JOIN workspaces w ON w.id = p.workspace_id
-       ORDER BY p.created_at DESC`;
-
-  const statement = env.DB.prepare(query);
-  const { results } = workspaceId ? await statement.bind(workspaceId).all<Project>() : await statement.all<Project>();
-
-  return results.length ? results : demoProjects();
+  const projects = await listProjectsUseCase({ workspaceId }, createProjectUseCasePorts(env));
+  const fallback = workspaceId
+    ? demoProjects().filter((project) => project.workspace_id === workspaceId)
+    : demoProjects();
+  return projects.length ? projects : fallback;
 }
 
 async function getProject(env: Env, projectId: string) {
-  if (!env.DB) return demoProjects().find((project) => project.id === projectId) ?? null;
-
-  return env.DB.prepare(
-    `SELECT p.*, w.name AS workspace_name
-     FROM projects p
-     JOIN workspaces w ON w.id = p.workspace_id
-     WHERE p.id = ?`,
-  )
-    .bind(projectId)
-    .first<Project>();
+  return (
+    (await getProjectUseCase(projectId, createProjectUseCasePorts(env))) ??
+    demoProjects().find((project) => project.id === projectId) ??
+    null
+  );
 }
 
 async function createProject(request: Request, env: Env, workspaceId: string) {
   const user = await getOrCreateAccessUser(request, env);
-  const body = await request.json<Partial<Project>>();
-  const project: Project = {
-    id: crypto.randomUUID(),
-    workspace_id: workspaceId,
-    name: body.name?.trim() || "Untitled project",
-    description: body.description || null,
-    status: body.status || "active",
-    starts_on: body.starts_on || null,
-    due_on: body.due_on || null,
-    github_repository_url: body.github_repository_url || null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  if (!env.DB) return project;
-
-  await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO projects (id, workspace_id, name, description, status, starts_on, due_on, github_repository_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      project.id,
-      project.workspace_id,
-      project.name,
-      project.description,
-      project.status,
-      project.starts_on,
-      project.due_on,
-      project.github_repository_url,
-    ),
-    env.DB.prepare(
-      `INSERT INTO project_members (project_id, user_id, role)
-       VALUES (?, ?, 'owner')`,
-    ).bind(project.id, user.id),
-  ]);
-
-  return project;
+  const body = await request.json<
+    Partial<Project> & {
+      startsOn?: string | null;
+      dueOn?: string | null;
+      githubRepositoryUrl?: string | null;
+    }
+  >();
+  return createProjectUseCase(
+    {
+      workspaceId,
+      ownerUserId: user.id,
+      name: body.name,
+      description: body.description,
+      status: body.status,
+      startsOn: body.startsOn ?? body.starts_on,
+      dueOn: body.dueOn ?? body.due_on,
+      githubRepositoryUrl: body.githubRepositoryUrl ?? body.github_repository_url,
+    },
+    createProjectUseCasePorts(env),
+  );
 }
 
 async function updateProject(request: Request, env: Env, projectId: string) {
-  const body = await request.json<Partial<Project>>();
-
-  if (!env.DB) return { id: projectId, ...body };
-
-  const existing = await env.DB.prepare("SELECT * FROM projects WHERE id = ?").bind(projectId).first<Project>();
-  if (!existing) return jsonError("project_not_found", 404);
-
-  await env.DB.prepare(
-    `UPDATE projects
-     SET name = ?, description = ?, status = ?, starts_on = ?, due_on = ?, github_repository_url = ?, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
-  )
-    .bind(
-      body.name?.trim() || existing.name,
-      body.description ?? existing.description,
-      body.status || existing.status,
-      body.starts_on ?? existing.starts_on,
-      body.due_on ?? existing.due_on,
-      body.github_repository_url ?? existing.github_repository_url,
-      projectId,
-    )
-    .run();
-
-  return getProject(env, projectId);
+  const body = await request.json<
+    Partial<Project> & {
+      startsOn?: string | null;
+      dueOn?: string | null;
+      githubRepositoryUrl?: string | null;
+    }
+  >();
+  return updateProjectUseCase(
+    projectId,
+    {
+      name: body.name,
+      description: body.description,
+      status: body.status,
+      startsOn: body.startsOn ?? body.starts_on,
+      dueOn: body.dueOn ?? body.due_on,
+      githubRepositoryUrl: body.githubRepositoryUrl ?? body.github_repository_url,
+    },
+    createProjectUseCasePorts(env),
+  );
 }
 
 async function listGitHubRepositories(env: Env, workspaceId: string) {
-  if (!env.DB) return demoGitHubRepositories(workspaceId);
-
-  const { results } = await env.DB.prepare(
-    `SELECT r.*
-     FROM github_repositories r
-     JOIN github_integrations i ON i.id = r.github_integration_id
-     WHERE i.workspace_id = ?
-     ORDER BY r.updated_at DESC`,
-  )
-    .bind(workspaceId)
-    .all<GitHubRepository>();
-
-  return results;
+  const repositories = await listGitHubRepositoriesUseCase(workspaceId, createGitHubRepositoryUseCasePorts(env));
+  return repositories.length ? repositories : demoGitHubRepositories(workspaceId);
 }
 
 async function createGitHubRepository(request: Request, env: Env, workspaceId: string) {
-  const body = await request.json<Partial<GitHubRepository>>();
-  const owner = body.owner?.trim();
-  const name = body.name?.trim();
-  if (!owner || !name) return jsonError("github_owner_and_name_required", 400);
-
-  const repository: GitHubRepository = {
-    id: crypto.randomUUID(),
-    github_integration_id: "",
-    project_id: body.project_id || null,
-    owner,
-    name,
-    repository_url: body.repository_url || `https://github.com/${owner}/${name}`,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  if (!env.DB) return repository;
-
-  const integrationId = await ensureGitHubIntegration(env, workspaceId);
-  repository.github_integration_id = integrationId;
-
-  await env.DB.prepare(
-    `INSERT INTO github_repositories (id, github_integration_id, project_id, owner, name, repository_url)
-     VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT(github_integration_id, owner, name) DO UPDATE SET
-       project_id = excluded.project_id,
-       repository_url = excluded.repository_url,
-       updated_at = CURRENT_TIMESTAMP`,
-  )
-    .bind(
-      repository.id,
-      integrationId,
-      repository.project_id,
-      repository.owner,
-      repository.name,
-      repository.repository_url,
-    )
-    .run();
-
-  if (repository.project_id) {
-    await env.DB.prepare(
-      `UPDATE projects
-       SET github_repository_url = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-    )
-      .bind(repository.repository_url, repository.project_id)
-      .run();
-  }
-
-  return repository;
-}
-
-async function ensureGitHubIntegration(env: Env, workspaceId: string): Promise<string> {
-  if (!env.DB) return "github_integration_demo";
-
-  const existing = await env.DB.prepare("SELECT id FROM github_integrations WHERE workspace_id = ? LIMIT 1")
-    .bind(workspaceId)
-    .first<{ id: string }>();
-  if (existing) return existing.id;
-
-  const id = crypto.randomUUID();
-  await env.DB.prepare("INSERT INTO github_integrations (id, workspace_id) VALUES (?, ?)").bind(id, workspaceId).run();
-  return id;
+  const body = await request.json<{
+    projectId?: string | null;
+    project_id?: string | null;
+    owner?: string | null;
+    name?: string | null;
+    repositoryUrl?: string | null;
+    repository_url?: string | null;
+  }>();
+  return createGitHubRepositoryUseCase(
+    {
+      workspaceId,
+      projectId: body.projectId ?? body.project_id,
+      owner: body.owner,
+      name: body.name,
+      repositoryUrl: body.repositoryUrl ?? body.repository_url,
+    },
+    createGitHubRepositoryUseCasePorts(env),
+  );
 }
 
 async function listGitHubEvents(env: Env, projectId: string) {
@@ -512,52 +424,27 @@ async function listGitHubEvents(env: Env, projectId: string) {
 }
 
 async function listWebhookEndpoints(env: Env, projectId: string) {
-  if (!env.DB) return demoWebhookEndpoints(projectId);
-
-  const { results } = await env.DB.prepare(
-    `SELECT id, project_id, name, secret_hash, mapping_json, enabled, created_at, updated_at
-     FROM webhook_endpoints
-     WHERE project_id = ?
-     ORDER BY created_at DESC`,
-  )
-    .bind(projectId)
-    .all<WebhookEndpoint>();
-
-  return results.map((endpoint) => ({ ...endpoint, secret_hash: "stored" }));
+  const endpoints = await listWebhookEndpointsUseCase(projectId, createWebhookEndpointUseCasePorts(env));
+  return endpoints.length ? endpoints : demoWebhookEndpoints(projectId);
 }
 
 async function createWebhookEndpoint(request: Request, env: Env, projectId: string) {
-  const body = await request.json<Partial<WebhookEndpoint> & { default_priority?: string; source?: string }>();
-  const token = createApiToken();
-  const tokenHash = await sha256Hex(token);
-  const mapping = {
-    source: body.source || "generic_webhook",
-    defaultPriority: normalizePriority(body.default_priority),
-  };
-  const endpoint: WebhookEndpoint & { token?: string; endpoint_url?: string } = {
-    id: crypto.randomUUID(),
-    project_id: projectId,
-    name: body.name?.trim() || "Generic intake",
-    secret_hash: tokenHash,
-    mapping_json: JSON.stringify(mapping),
-    enabled: 1,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    token,
-  };
-
-  endpoint.endpoint_url = new URL(`/api/webhooks/generic/${endpoint.id}`, request.url).toString();
-
-  if (!env.DB) return endpoint;
-
-  await env.DB.prepare(
-    `INSERT INTO webhook_endpoints (id, project_id, name, secret_hash, mapping_json, enabled)
-     VALUES (?, ?, ?, ?, ?, 1)`,
-  )
-    .bind(endpoint.id, projectId, endpoint.name, tokenHash, endpoint.mapping_json)
-    .run();
-
-  return { ...endpoint, secret_hash: "stored" };
+  const body = await request.json<{
+    name?: string | null;
+    defaultPriority?: string | null;
+    default_priority?: string | null;
+    source?: string | null;
+  }>();
+  return createWebhookEndpointUseCase(
+    {
+      projectId,
+      baseUrl: request.url,
+      name: body.name,
+      source: body.source,
+      defaultPriority: body.defaultPriority ?? body.default_priority,
+    },
+    createWebhookEndpointUseCasePorts(env),
+  );
 }
 
 async function listNotificationChannels(env: Env, projectId: string) {
@@ -565,13 +452,15 @@ async function listNotificationChannels(env: Env, projectId: string) {
 }
 
 async function createNotificationChannel(request: Request, env: Env, projectId: string) {
-  const body = await request.json<Partial<NotificationChannel>>();
+  const body = await request.json<
+    Partial<NotificationChannel> & { channelType?: string | null; targetUrl?: string | null }
+  >();
   return createNotificationChannelUseCase(
     {
       projectId,
       name: body.name,
-      channelType: body.channel_type,
-      targetUrl: body.target_url,
+      channelType: body.channelType ?? body.channel_type,
+      targetUrl: body.targetUrl ?? body.target_url,
     },
     createNotificationUseCasePorts(env),
   );
@@ -591,128 +480,84 @@ async function listTasks(env: Env, projectId: string) {
 }
 
 async function listWikiPages(env: Env, projectId: string) {
-  if (!env.DB) return demoWikiPages(projectId);
-
-  const { results } = await env.DB.prepare(
-    `SELECT id, project_id, parent_page_id, title, slug, body_markdown, created_by_user_id, updated_by_user_id, created_at, updated_at
-     FROM wiki_pages
-     WHERE project_id = ?
-     ORDER BY updated_at DESC`,
-  )
-    .bind(projectId)
-    .all<WikiPage>();
-
-  return results;
+  const pages = await listWikiPagesUseCase(projectId, createWikiUseCasePorts(env));
+  return pages.length ? pages : demoWikiPages(projectId);
 }
 
 async function getWikiPage(env: Env, pageId: string) {
-  if (!env.DB) return demoWikiPages("prj_launch").find((page) => page.id === pageId) ?? null;
-
-  return env.DB.prepare(
-    `SELECT id, project_id, parent_page_id, title, slug, body_markdown, created_by_user_id, updated_by_user_id, created_at, updated_at
-     FROM wiki_pages
-     WHERE id = ?`,
-  )
-    .bind(pageId)
-    .first<WikiPage>();
+  return (
+    (await getWikiPageUseCase(pageId, createWikiUseCasePorts(env))) ??
+    demoWikiPages("prj_launch").find((page) => page.id === pageId) ??
+    null
+  );
 }
 
 async function createWikiPage(request: Request, env: Env, projectId: string) {
   const user = await getOrCreateAccessUser(request, env);
-  const body = await request.json<Partial<WikiPage>>();
-  const title = body.title?.trim() || "Untitled page";
-  const page: WikiPage = {
-    id: crypto.randomUUID(),
-    project_id: projectId,
-    parent_page_id: body.parent_page_id || null,
-    title,
-    slug: slugify(body.slug || title),
-    body_markdown: body.body_markdown || "",
-    created_by_user_id: user.id,
-    updated_by_user_id: user.id,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  if (!env.DB) return page;
-
-  const revisionId = crypto.randomUUID();
-  await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO wiki_pages (
-         id, project_id, parent_page_id, title, slug, body_markdown, created_by_user_id, updated_by_user_id
-       )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(page.id, page.project_id, page.parent_page_id, page.title, page.slug, page.body_markdown, user.id, user.id),
-    env.DB.prepare(
-      `INSERT INTO wiki_revisions (id, wiki_page_id, body_markdown, author_user_id)
-       VALUES (?, ?, ?, ?)`,
-    ).bind(revisionId, page.id, page.body_markdown, user.id),
-  ]);
-
-  return page;
+  const body = await request.json<Partial<WikiPage> & { bodyMarkdown?: string; parentPageId?: string | null }>();
+  return createWikiPageUseCase(
+    {
+      projectId,
+      authorUserId: user.id,
+      title: body.title,
+      slug: body.slug,
+      bodyMarkdown: body.bodyMarkdown ?? body.body_markdown,
+      parentPageId: body.parentPageId ?? body.parent_page_id,
+    },
+    createWikiUseCasePorts(env),
+  );
 }
 
 async function updateWikiPage(request: Request, env: Env, pageId: string) {
   const user = await getOrCreateAccessUser(request, env);
-  const body = await request.json<Partial<WikiPage>>();
-
-  if (!env.DB) return { id: pageId, ...body };
-
-  const existing = await env.DB.prepare("SELECT * FROM wiki_pages WHERE id = ?").bind(pageId).first<WikiPage>();
-  if (!existing) return jsonError("wiki_page_not_found", 404);
-
-  const title = body.title?.trim() || existing.title;
-  const markdown = body.body_markdown ?? existing.body_markdown;
-  const slug = body.slug ? slugify(body.slug) : existing.slug;
-  const revisionId = crypto.randomUUID();
-
-  await env.DB.batch([
-    env.DB.prepare(
-      `UPDATE wiki_pages
-       SET title = ?, slug = ?, body_markdown = ?, parent_page_id = ?, updated_by_user_id = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-    ).bind(title, slug, markdown, body.parent_page_id ?? existing.parent_page_id, user.id, pageId),
-    env.DB.prepare(
-      `INSERT INTO wiki_revisions (id, wiki_page_id, body_markdown, author_user_id)
-       VALUES (?, ?, ?, ?)`,
-    ).bind(revisionId, pageId, markdown, user.id),
-  ]);
-
-  return getWikiPage(env, pageId);
+  const body = await request.json<Partial<WikiPage> & { bodyMarkdown?: string; parentPageId?: string | null }>();
+  return updateWikiPageUseCase(
+    pageId,
+    {
+      authorUserId: user.id,
+      title: body.title,
+      slug: body.slug,
+      bodyMarkdown: body.bodyMarkdown ?? body.body_markdown,
+      parentPageId: body.parentPageId ?? body.parent_page_id,
+    },
+    createWikiUseCasePorts(env),
+  );
 }
 
 async function listWikiRevisions(env: Env, pageId: string) {
-  if (!env.DB) return demoWikiRevisions(pageId);
-
-  const { results } = await env.DB.prepare(
-    `SELECT r.*, u.name AS author_name
-     FROM wiki_revisions r
-     LEFT JOIN users u ON u.id = r.author_user_id
-     WHERE r.wiki_page_id = ?
-     ORDER BY r.created_at DESC`,
-  )
-    .bind(pageId)
-    .all<WikiRevision>();
-
-  return results;
+  const revisions = await listWikiRevisionsUseCase(pageId, createWikiUseCasePorts(env));
+  return revisions.length ? revisions : demoWikiRevisions(pageId);
 }
 
 async function createTask(request: Request, env: Env, projectId: string) {
   const body = await request.json<
     Partial<Task> & {
       dueDate?: string;
+      dueOn?: string;
+      parentTaskId?: string | null;
+      categoryName?: string;
       category_name?: string;
+      milestoneName?: string;
       milestone_name?: string;
+      milestoneDueOn?: string;
       milestone_due_on?: string;
+      assigneeName?: string;
       assignee_name?: string;
       tags?: string | string[];
     }
   >();
-  const categoryId = body.category_id || (await resolveTaskCategoryId(env, projectId, body.category_name));
+  const categoryId =
+    body.category_id || (await resolveTaskCategoryId(env, projectId, body.categoryName ?? body.category_name));
   const milestoneId =
-    body.milestone_id || (await resolveTaskMilestoneId(env, projectId, body.milestone_name, body.milestone_due_on));
-  const assigneeUserId = body.assignee_user_id || (await resolveTaskAssigneeId(env, body.assignee_name));
+    body.milestone_id ||
+    (await resolveTaskMilestoneId(
+      env,
+      projectId,
+      body.milestoneName ?? body.milestone_name,
+      body.milestoneDueOn ?? body.milestone_due_on,
+    ));
+  const assigneeUserId =
+    body.assignee_user_id || (await resolveTaskAssigneeId(env, body.assigneeName ?? body.assignee_name));
   const task = await createProjectTaskUseCase(
     {
       projectId,
@@ -722,9 +567,9 @@ async function createTask(request: Request, env: Env, projectId: string) {
       priority: body.priority,
       assigneeUserId,
       startsOn: body.starts_on,
-      dueOn: body.due_on || body.dueDate,
+      dueOn: body.due_on || body.dueOn || body.dueDate,
       progress: body.progress,
-      parentTaskId: body.parent_task_id,
+      parentTaskId: body.parent_task_id ?? body.parentTaskId,
       categoryId,
       milestoneId,
       tags: body.tags,
@@ -760,138 +605,100 @@ async function createTask(request: Request, env: Env, projectId: string) {
 }
 
 async function updateTask(request: Request, env: Env, taskId: string) {
-  const body = await request.json<Partial<Task> & { assignee_name?: string; tags?: string | string[] }>();
+  const body = await request.json<
+    Partial<Task> & {
+      assigneeName?: string;
+      assignee_name?: string;
+      startsOn?: string | null;
+      dueOn?: string | null;
+      categoryId?: string | null;
+      milestoneId?: string | null;
+      parentTaskId?: string | null;
+      tags?: string | string[];
+    }
+  >();
   const allowedStatus = body.status && body.status in taskStatusLabels ? body.status : undefined;
   const progress =
     typeof body.progress === "number" ? Math.min(100, Math.max(0, Math.round(body.progress))) : undefined;
 
   if (!env.DB) return { id: taskId, status: allowedStatus, progress };
 
-  const assigneeUserId = Object.hasOwn(body, "assignee_name")
-    ? await resolveTaskAssigneeId(env, body.assignee_name)
-    : body.assignee_user_id;
+  const assigneeUserId =
+    Object.hasOwn(body, "assigneeName") || Object.hasOwn(body, "assignee_name")
+      ? await resolveTaskAssigneeId(env, body.assigneeName ?? body.assignee_name)
+      : body.assignee_user_id;
   const patch = {
     title: body.title,
     description: body.description,
     status: body.status,
     priority: body.priority,
-    ...(Object.hasOwn(body, "assignee_user_id") || Object.hasOwn(body, "assignee_name") ? { assigneeUserId } : {}),
-    startsOn: body.starts_on,
-    dueOn: body.due_on,
+    ...(Object.hasOwn(body, "assignee_user_id") ||
+    Object.hasOwn(body, "assigneeName") ||
+    Object.hasOwn(body, "assignee_name")
+      ? { assigneeUserId }
+      : {}),
+    startsOn: body.startsOn ?? body.starts_on,
+    dueOn: body.dueOn ?? body.due_on,
     progress: body.progress,
-    ...(Object.hasOwn(body, "category_id") ? { categoryId: body.category_id } : {}),
-    ...(Object.hasOwn(body, "milestone_id") ? { milestoneId: body.milestone_id } : {}),
+    ...(Object.hasOwn(body, "categoryId") || Object.hasOwn(body, "category_id")
+      ? { categoryId: body.categoryId ?? body.category_id }
+      : {}),
+    ...(Object.hasOwn(body, "milestoneId") || Object.hasOwn(body, "milestone_id")
+      ? { milestoneId: body.milestoneId ?? body.milestone_id }
+      : {}),
     ...(Object.hasOwn(body, "tags") ? { tags: body.tags } : {}),
-    ...(Object.hasOwn(body, "parent_task_id") ? { parentTaskId: body.parent_task_id } : {}),
+    ...(Object.hasOwn(body, "parentTaskId") || Object.hasOwn(body, "parent_task_id")
+      ? { parentTaskId: body.parentTaskId ?? body.parent_task_id }
+      : {}),
   };
 
   return updateTaskUseCase(taskId, patch, createTaskUseCasePorts(env));
 }
 
 async function listProjectDependencies(env: Env, projectId: string) {
-  if (!env.DB) return demoDependencies().filter((dependency) => dependency.task_id.startsWith("tsk_"));
-
-  const { results } = await env.DB.prepare(
-    `SELECT d.task_id, d.depends_on_task_id, t.title AS task_title, parent.title AS depends_on_title, d.created_at
-     FROM task_dependencies d
-     JOIN tasks t ON t.id = d.task_id
-     JOIN tasks parent ON parent.id = d.depends_on_task_id
-     WHERE t.project_id = ?
-     ORDER BY d.created_at DESC`,
-  )
-    .bind(projectId)
-    .all<TaskDependency>();
-
-  return results;
+  const dependencies = await listProjectDependenciesUseCase(projectId, createTaskCollaborationUseCasePorts(env));
+  return dependencies.length
+    ? dependencies
+    : demoDependencies().filter((dependency) => dependency.task_id.startsWith("tsk_"));
 }
 
 async function listTaskDependencies(env: Env, taskId: string) {
-  if (!env.DB) return demoDependencies().filter((dependency) => dependency.task_id === taskId);
-
-  const { results } = await env.DB.prepare(
-    `SELECT d.task_id, d.depends_on_task_id, t.title AS task_title, parent.title AS depends_on_title, d.created_at
-     FROM task_dependencies d
-     JOIN tasks t ON t.id = d.task_id
-     JOIN tasks parent ON parent.id = d.depends_on_task_id
-     WHERE d.task_id = ?
-     ORDER BY d.created_at DESC`,
-  )
-    .bind(taskId)
-    .all<TaskDependency>();
-
-  return results;
+  const dependencies = await listTaskDependenciesUseCase(taskId, createTaskCollaborationUseCasePorts(env));
+  return dependencies.length ? dependencies : demoDependencies().filter((dependency) => dependency.task_id === taskId);
 }
 
 async function createTaskDependency(request: Request, env: Env, taskId: string) {
-  const body = await request.json<{ depends_on_task_id?: string }>();
-  const dependsOnTaskId = body.depends_on_task_id?.trim();
-  if (!dependsOnTaskId) return jsonError("depends_on_task_id_required", 400);
-  if (dependsOnTaskId === taskId) return jsonError("task_cannot_depend_on_itself", 400);
-
-  const dependency: TaskDependency = {
-    task_id: taskId,
-    depends_on_task_id: dependsOnTaskId,
-    created_at: new Date().toISOString(),
-  };
-
-  if (!env.DB) return dependency;
-
-  await env.DB.prepare(
-    `INSERT OR IGNORE INTO task_dependencies (task_id, depends_on_task_id)
-     VALUES (?, ?)`,
-  )
-    .bind(taskId, dependsOnTaskId)
-    .run();
-
-  return dependency;
+  const body = await request.json<{ dependsOnTaskId?: string; depends_on_task_id?: string }>();
+  return createTaskDependencyUseCase(
+    {
+      taskId,
+      dependsOnTaskId: body.dependsOnTaskId ?? body.depends_on_task_id,
+    },
+    createTaskCollaborationUseCasePorts(env),
+  );
 }
 
 async function listTaskComments(env: Env, taskId: string) {
-  if (!env.DB) return demoComments(taskId);
-
-  const { results } = await env.DB.prepare(
-    `SELECT c.*, u.name AS author_name
-     FROM task_comments c
-     LEFT JOIN users u ON u.id = c.author_user_id
-     WHERE c.task_id = ?
-     ORDER BY c.created_at ASC`,
-  )
-    .bind(taskId)
-    .all<TaskComment>();
-
-  return results;
+  const comments = await listTaskCommentsUseCase(taskId, createTaskCollaborationUseCasePorts(env));
+  return comments.length ? comments : demoComments(taskId);
 }
 
 async function createTaskComment(request: Request, env: Env, taskId: string) {
   const user = await getOrCreateAccessUser(request, env);
   const body = await request.json<Partial<TaskComment>>();
-  const comment: TaskComment = {
-    id: crypto.randomUUID(),
-    task_id: taskId,
-    author_user_id: user.id,
-    author_name: user.name,
-    body: body.body?.trim() || "",
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  if (!comment.body) return jsonError("comment_body_required", 400);
-  if (!env.DB) return comment;
-
-  await env.DB.prepare(
-    `INSERT INTO task_comments (id, task_id, author_user_id, body)
-     VALUES (?, ?, ?, ?)`,
-  )
-    .bind(comment.id, taskId, user.id, comment.body)
-    .run();
-
-  const task = await env.DB.prepare("SELECT project_id, title FROM tasks WHERE id = ?")
-    .bind(taskId)
-    .first<{ project_id: string; title: string }>();
-  if (task) {
-    await notifyProject(env, task.project_id, {
+  const { comment, notificationTarget } = await createTaskCommentUseCase(
+    {
+      taskId,
+      authorUserId: user.id,
+      authorName: user.name,
+      body: body.body,
+    },
+    createTaskCollaborationUseCasePorts(env),
+  );
+  if (notificationTarget) {
+    await notifyProject(env, notificationTarget.project_id, {
       title: "Task comment added",
-      body: `${user.name} commented on ${task.title}.`,
+      body: `${user.name} commented on ${notificationTarget.title}.`,
       source: "app",
     });
   }

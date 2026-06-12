@@ -43,9 +43,12 @@ ProjectFlare follows a Clean Architecture direction in a small pnpm workspace:
 
 ```txt
 apps/web                 React admin UI
+packages/admin          shared admin API client, UI types, and locale catalogs
 packages/core           domain models, use cases, and ports
 packages/cloudflare     Worker entrypoint, HTTP presentation, D1 adapters, Cloudflare bindings
-migrations              D1 migrations and seed data
+packages/plugin-api     definePlugin API for first-party and future third-party plugins
+packages/plugins        first-party plugins
+migrations              consolidated D1 initial schema and seed data
 test                    unit and Worker/API tests
 ```
 
@@ -54,6 +57,8 @@ The intended dependency direction is:
 ```txt
 apps/web -> HTTP API
 packages/cloudflare -> packages/core
+packages/cloudflare -> packages/plugin-api + packages/plugins
+apps/web -> packages/admin
 packages/core -> no Cloudflare runtime dependency
 ```
 
@@ -63,14 +68,19 @@ Core business rules live in `packages/core`. Cloudflare-specific code, D1 SQL, q
 
 ProjectFlare has a first plugin foundation inspired by EmDash:
 
-- `PluginDescriptor` declares id, version, entrypoint, capabilities, hooks, routes, and storage collections
+- `definePlugin()` wraps plugin descriptors and optional route/hook handlers
+- `PluginDescriptor` declares id, version, entrypoint, capabilities, hooks, routes, settings schema, and storage collections
 - capabilities are approved at install time and stored with the workspace installation
 - lifecycle hooks are available for `plugin:install`, `plugin:activate`, and `plugin:deactivate`
 - task hooks can react to `task:created`
 - plugin routes are invoked through `/api/workspaces/:workspaceId/plugins/:pluginId/routes/:routeName`
 - plugin data is scoped through D1 tables for installed plugins, plugin KV, and plugin events
 
-Current plugins run through a host runtime adapter. The Clean Architecture port is intentionally shaped so a future Cloudflare Dynamic Worker runner can replace the in-process runtime for third-party plugins, matching the EmDash security direction of isolated execution and explicit permissions.
+Current first-party plugins live in `packages/plugins` and run through a host runtime adapter. The Clean Architecture port is intentionally shaped so a future Cloudflare Dynamic Worker runner can replace the in-process runtime for third-party plugins, matching the EmDash security direction of isolated execution and explicit permissions.
+
+## MCP / Agent Surface
+
+ProjectFlare exposes the first MCP tool schema descriptors under `packages/core/src/mcp-api`. The current descriptors cover project listing, task listing/creation, and notification sending with explicit required capabilities. This keeps agent access aligned with the same capability model used by plugins.
 
 ## Implemented API
 

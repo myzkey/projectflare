@@ -21,14 +21,14 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     throw new Error(`Request failed: ${path}`);
   }
-  return response.json() as Promise<T>;
+  return snakeCaseKeys(await response.json()) as T;
 }
 
 function postJson<T>(path: string, body: unknown): Promise<T> {
   return requestJson<T>(path, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(camelCaseKeys(body)),
   });
 }
 
@@ -36,8 +36,32 @@ function patchJson<T>(path: string, body: unknown): Promise<T> {
   return requestJson<T>(path, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify(camelCaseKeys(body)),
   });
+}
+
+function camelCaseKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(camelCaseKeys);
+  if (!isPlainObject(value)) return value;
+  return Object.fromEntries(Object.entries(value).map(([key, child]) => [toCamelCase(key), camelCaseKeys(child)]));
+}
+
+function snakeCaseKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(snakeCaseKeys);
+  if (!isPlainObject(value)) return value;
+  return Object.fromEntries(Object.entries(value).map(([key, child]) => [toSnakeCase(key), snakeCaseKeys(child)]));
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype;
+}
+
+function toCamelCase(key: string): string {
+  return key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+}
+
+function toSnakeCase(key: string): string {
+  return key.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
 
 export const api = {
@@ -51,7 +75,7 @@ export const api = {
   updateTask: (taskId: string, body: unknown) => patchJson<Task>(`/api/tasks/${taskId}`, body),
   projectDependencies: (projectId: string) => requestJson<TaskDependency[]>(`/api/projects/${projectId}/dependencies`),
   createDependency: (taskId: string, dependsOnTaskId: string) =>
-    postJson<TaskDependency>(`/api/tasks/${taskId}/dependencies`, { depends_on_task_id: dependsOnTaskId }),
+    postJson<TaskDependency>(`/api/tasks/${taskId}/dependencies`, { dependsOnTaskId }),
   comments: (taskId: string) => requestJson<TaskComment[]>(`/api/tasks/${taskId}/comments`),
   createComment: (taskId: string, body: string) => postJson<TaskComment>(`/api/tasks/${taskId}/comments`, { body }),
   wikiPages: (projectId: string) => requestJson<WikiPage[]>(`/api/projects/${projectId}/wiki`),

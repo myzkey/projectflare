@@ -1,0 +1,5 @@
+{
+  "name": "@projectflare/plugin-api",
+  "private": true,
+  "type": "module"
+}

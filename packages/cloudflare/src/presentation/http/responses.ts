@@ -9,7 +9,7 @@ export function jsonError(error: string, status: number): Response {
 
 export function json(data: unknown, status = 200): Response {
   if (data instanceof Response) return data;
-  return new Response(JSON.stringify(data, null, 2), { status, headers: jsonHeaders });
+  return new Response(JSON.stringify(camelCaseKeys(data), null, 2), { status, headers: jsonHeaders });
 }
 
 export function htmlResponse(markup: string): Response {
@@ -19,4 +19,14 @@ export function htmlResponse(markup: string): Response {
       "cache-control": "no-store",
     },
   });
+}
+
+function camelCaseKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(camelCaseKeys);
+  if (!value || typeof value !== "object" || value instanceof Date) return value;
+  return Object.fromEntries(Object.entries(value).map(([key, child]) => [toCamelCase(key), camelCaseKeys(child)]));
+}
+
+function toCamelCase(key: string): string {
+  return key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
 }

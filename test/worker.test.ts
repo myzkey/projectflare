@@ -50,7 +50,7 @@ describe("ProjectFlare worker", () => {
     expect(catalog).toContainEqual(expect.objectContaining({ id: "projectflare-demo-plugin" }));
     expect(installed).toContainEqual(
       expect.objectContaining({
-        plugin_id: "projectflare-demo-plugin",
+        pluginId: "projectflare-demo-plugin",
         descriptor: expect.objectContaining({ name: "ProjectFlare Demo Plugin" }),
       }),
     );
@@ -111,7 +111,7 @@ describe("ProjectFlare worker", () => {
     expect(body).toMatchObject({
       accepted: true,
       task: {
-        project_id: "prj_launch",
+        projectId: "prj_launch",
         title: "Webhook smoke task",
         source: "vitest",
         priority: "urgent",
