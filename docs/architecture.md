@@ -69,6 +69,26 @@ packages/cloudflare/src/presentation/http/worker.ts
       <- packages/cloudflare/src/infrastructure/cloudflare/d1/github-sync-adapter.ts
 ```
 
+Notifications:
+
+```txt
+packages/cloudflare/src/presentation/http/worker.ts
+  -> packages/core/src/application/usecases/manage-notifications.ts
+    -> packages/core/src/domain/notification.ts
+    -> packages/core/src/ports/notifications.ts
+      <- packages/cloudflare/src/infrastructure/cloudflare/d1/notification-repository.ts
+      <- packages/cloudflare/src/infrastructure/cloudflare/notifications/delivery.ts
+```
+
+Slack, generic webhook, and Lark-compatible outbound delivery are provider-shaped infrastructure concerns. Core use cases create app notifications and request delivery through ports, without knowing about `fetch` or Slack block payloads.
+
+Cloudflare Access user bootstrap and local demo data also live outside the Worker handler:
+
+```txt
+packages/cloudflare/src/infrastructure/cloudflare/identity/access-user.ts
+packages/cloudflare/src/presentation/http/demo-data.ts
+```
+
 ## Refactoring Rule
 
 When adding or changing behavior:
@@ -83,5 +103,5 @@ When adding or changing behavior:
 ## Next Extraction Targets
 
 - Wiki page create/update use cases
-- Notification delivery use case
 - Project repositories backed by D1
+- Task comment and dependency use cases

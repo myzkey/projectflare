@@ -148,7 +148,7 @@ wrangler secret put GITHUB_WEBHOOK_SECRET
 - endpoint単位で `source` とデフォルト優先度の簡易mapping
 - Webhookタスク、コメント、GitHub Issue/Comment/PRイベントからアプリ内通知を保存
 - Slack/Lark互換URLまたは汎用Webhook URLへの通知チャンネル追加
-- 設定済みチャンネルへ短いJSON通知payloadを送信
+- Slack Incoming Webhook向けblock payload、または汎用JSON通知payloadを設定済みチャンネルへ送信
 
 UIで作成したGeneric Webhook tokenは一度だけ表示されます。外部サービス側に保存して利用してください。
 

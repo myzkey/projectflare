@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import worker from "../packages/cloudflare/src";
-import { notificationPayloadFor } from "../packages/cloudflare/src/presentation/http/worker";
+import { notificationPayloadFor } from "../packages/cloudflare/src/infrastructure/cloudflare/notifications/delivery";
 
 const env = {};
 

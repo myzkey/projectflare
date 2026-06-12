@@ -150,7 +150,7 @@ wrangler secret put GITHUB_WEBHOOK_SECRET
 - Apply simple endpoint mapping for `source` and default priority
 - Store app notifications for webhook tasks, comments, GitHub issue/comment/PR events
 - Add outgoing notification channels for generic webhook, Slack, or Lark-compatible URLs
-- Send a compact JSON notification payload to configured channels
+- Send Slack Incoming Webhook block payloads or compact JSON payloads to configured channels
 
 Generic webhook endpoints created in the UI return the token once. Store it in the external system that will send tasks into ProjectFlare.
 

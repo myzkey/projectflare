@@ -1,5 +1,12 @@
 import { handleGenericWebhookUseCase } from "../../../../core/src/application/usecases/handle-generic-webhook";
 import {
+  createNotificationChannelUseCase,
+  listNotificationChannelsUseCase,
+  listNotificationsUseCase,
+  markNotificationReadUseCase,
+  notifyProjectUseCase,
+} from "../../../../core/src/application/usecases/manage-notifications";
+import {
   dispatchPluginHookUseCase,
   installPluginUseCase,
   invokePluginRouteUseCase,
@@ -19,7 +26,7 @@ import {
   type GitHubWebhookPayload,
   repositoryFullNameFromPayload,
 } from "../../../../core/src/domain/github";
-import type { Notification, NotificationChannel } from "../../../../core/src/domain/notification";
+import type { NotificationChannel } from "../../../../core/src/domain/notification";
 import type { PluginCapability } from "../../../../core/src/domain/plugin";
 import type { Project, Workspace } from "../../../../core/src/domain/project";
 import { createApiToken, sha256Hex, verifyGitHubSignature } from "../../../../core/src/domain/security";
@@ -28,50 +35,34 @@ import type { WikiPage, WikiRevision } from "../../../../core/src/domain/wiki";
 import type { GitHubQueueMessage, ProjectFlareQueueMessage } from "../../../../core/src/ports/queue";
 import { createGenericWebhookPorts } from "../../infrastructure/cloudflare/d1/generic-webhook-adapter";
 import { createGitHubSyncPorts } from "../../infrastructure/cloudflare/d1/github-sync-adapter";
+import { createNotificationUseCasePorts } from "../../infrastructure/cloudflare/d1/notification-repository";
 import { createPluginRepository } from "../../infrastructure/cloudflare/d1/plugin-repository";
+import {
+  resolveTaskAssigneeId,
+  resolveTaskCategoryId,
+  resolveTaskMilestoneId,
+} from "../../infrastructure/cloudflare/d1/task-metadata";
 import { createTaskUseCasePorts } from "../../infrastructure/cloudflare/d1/task-repository";
 import type { Env } from "../../infrastructure/cloudflare/env";
+import { getOrCreateAccessUser } from "../../infrastructure/cloudflare/identity/access-user";
+import { slugify } from "../../infrastructure/cloudflare/ids";
 import { createPluginCatalog, createPluginRuntime } from "../../infrastructure/cloudflare/plugins/builtin";
 import { renderApp } from "../ui/app";
+import {
+  demoComments,
+  demoDependencies,
+  demoGitHubRepositories,
+  demoProjects,
+  demoTasks,
+  demoWebhookEndpoints,
+  demoWikiPages,
+  demoWikiRevisions,
+  demoWorkspaces,
+} from "./demo-data";
 import { htmlResponse, json, jsonError } from "./responses";
-
-type AccessUser = {
-  id: string;
-  email: string;
-  name: string;
-  group: string | null;
-};
+import type { TaskComment, TaskDependency, WebhookEndpoint } from "./types";
 
 type Task = DomainTask;
-
-type TaskComment = {
-  id: string;
-  task_id: string;
-  author_user_id: string | null;
-  author_name?: string | null;
-  body: string;
-  created_at: string;
-  updated_at: string;
-};
-
-type TaskDependency = {
-  task_id: string;
-  depends_on_task_id: string;
-  task_title?: string;
-  depends_on_title?: string;
-  created_at: string;
-};
-
-type WebhookEndpoint = {
-  id: string;
-  project_id: string;
-  name: string;
-  secret_hash: string;
-  mapping_json: string | null;
-  enabled: number;
-  created_at: string;
-  updated_at: string;
-};
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -84,7 +75,7 @@ export default {
         if (path === "/") return htmlResponse(renderApp());
       }
       if (path === "/api/health") return json({ ok: true, service: "projectflare" });
-      if (path === "/api/me") return json(await getOrCreateUser(request, env));
+      if (path === "/api/me") return json(await getOrCreateAccessUser(request, env));
       if (path === "/api/plugins/catalog" && request.method === "GET") {
         return json(await listPluginCatalogUseCase(createPluginPorts(env)));
       }
@@ -221,33 +212,6 @@ export default {
   },
 };
 
-async function getOrCreateUser(request: Request, env: Env): Promise<AccessUser> {
-  const email = request.headers.get("CF-Access-Authenticated-User-Email") ?? "local@example.com";
-  const name = request.headers.get("CF-Access-Authenticated-User-Name") ?? email.split("@")[0];
-  const group = request.headers.get("Cf-Access-Groups")?.split(",")[0]?.trim() || null;
-  const id = stableId("usr", email);
-  const user = { id, email, name, group };
-
-  if (!env.DB) return user;
-
-  await env.DB.prepare(
-    `INSERT INTO users (id, email, name, access_group, updated_at)
-     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-     ON CONFLICT(email) DO UPDATE SET name = excluded.name, access_group = excluded.access_group, updated_at = CURRENT_TIMESTAMP`,
-  )
-    .bind(id, email, name, group)
-    .run();
-
-  await env.DB.prepare(
-    `INSERT OR IGNORE INTO workspace_members (workspace_id, user_id, role)
-     VALUES ('ws_demo', ?, 'owner')`,
-  )
-    .bind(id)
-    .run();
-
-  return user;
-}
-
 async function listWorkspaces(env: Env) {
   if (!env.DB) return demoWorkspaces();
 
@@ -261,7 +225,7 @@ async function listWorkspaces(env: Env) {
 }
 
 async function createWorkspace(request: Request, env: Env) {
-  const user = await getOrCreateUser(request, env);
+  const user = await getOrCreateAccessUser(request, env);
   const body = await request.json<Partial<Workspace>>();
   const name = body.name?.trim() || "Untitled workspace";
   const workspace: Workspace = {
@@ -382,7 +346,7 @@ async function getProject(env: Env, projectId: string) {
 }
 
 async function createProject(request: Request, env: Env, workspaceId: string) {
-  const user = await getOrCreateUser(request, env);
+  const user = await getOrCreateAccessUser(request, env);
   const body = await request.json<Partial<Project>>();
   const project: Project = {
     id: crypto.randomUUID(),
@@ -597,75 +561,28 @@ async function createWebhookEndpoint(request: Request, env: Env, projectId: stri
 }
 
 async function listNotificationChannels(env: Env, projectId: string) {
-  if (!env.DB) return [];
-
-  const { results } = await env.DB.prepare(
-    `SELECT *
-     FROM notification_channels
-     WHERE project_id = ?
-     ORDER BY created_at DESC`,
-  )
-    .bind(projectId)
-    .all<NotificationChannel>();
-
-  return results;
+  return listNotificationChannelsUseCase(projectId, createNotificationUseCasePorts(env));
 }
 
 async function createNotificationChannel(request: Request, env: Env, projectId: string) {
   const body = await request.json<Partial<NotificationChannel>>();
-  const channelType = body.channel_type === "slack" || body.channel_type === "lark" ? body.channel_type : "webhook";
-  const channel: NotificationChannel = {
-    id: crypto.randomUUID(),
-    project_id: projectId,
-    name: body.name?.trim() || `${channelType} channel`,
-    channel_type: channelType,
-    target_url: body.target_url?.trim() || "",
-    enabled: 1,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  if (!channel.target_url) return jsonError("notification_target_url_required", 400);
-  if (!env.DB) return channel;
-
-  await env.DB.prepare(
-    `INSERT INTO notification_channels (id, project_id, name, channel_type, target_url, enabled)
-     VALUES (?, ?, ?, ?, ?, 1)`,
-  )
-    .bind(channel.id, projectId, channel.name, channel.channel_type, channel.target_url)
-    .run();
-
-  return channel;
+  return createNotificationChannelUseCase(
+    {
+      projectId,
+      name: body.name,
+      channelType: body.channel_type,
+      targetUrl: body.target_url,
+    },
+    createNotificationUseCasePorts(env),
+  );
 }
 
 async function listNotifications(env: Env, projectId: string) {
-  if (!env.DB) return [];
-
-  const { results } = await env.DB.prepare(
-    `SELECT *
-     FROM notifications
-     WHERE project_id = ?
-     ORDER BY created_at DESC
-     LIMIT 30`,
-  )
-    .bind(projectId)
-    .all<Notification>();
-
-  return results;
+  return listNotificationsUseCase(projectId, createNotificationUseCasePorts(env));
 }
 
 async function markNotificationRead(env: Env, notificationId: string) {
-  if (!env.DB) return { id: notificationId, read_at: new Date().toISOString() };
-
-  await env.DB.prepare(
-    `UPDATE notifications
-     SET read_at = CURRENT_TIMESTAMP
-     WHERE id = ?`,
-  )
-    .bind(notificationId)
-    .run();
-
-  return { id: notificationId, read: true };
+  return markNotificationReadUseCase(notificationId, createNotificationUseCasePorts(env));
 }
 
 async function listTasks(env: Env, projectId: string) {
@@ -701,7 +618,7 @@ async function getWikiPage(env: Env, pageId: string) {
 }
 
 async function createWikiPage(request: Request, env: Env, projectId: string) {
-  const user = await getOrCreateUser(request, env);
+  const user = await getOrCreateAccessUser(request, env);
   const body = await request.json<Partial<WikiPage>>();
   const title = body.title?.trim() || "Untitled page";
   const page: WikiPage = {
@@ -737,7 +654,7 @@ async function createWikiPage(request: Request, env: Env, projectId: string) {
 }
 
 async function updateWikiPage(request: Request, env: Env, pageId: string) {
-  const user = await getOrCreateUser(request, env);
+  const user = await getOrCreateAccessUser(request, env);
   const body = await request.json<Partial<WikiPage>>();
 
   if (!env.DB) return { id: pageId, ...body };
@@ -946,7 +863,7 @@ async function listTaskComments(env: Env, taskId: string) {
 }
 
 async function createTaskComment(request: Request, env: Env, taskId: string) {
-  const user = await getOrCreateUser(request, env);
+  const user = await getOrCreateAccessUser(request, env);
   const body = await request.json<Partial<TaskComment>>();
   const comment: TaskComment = {
     id: crypto.randomUUID(),
@@ -1046,144 +963,9 @@ async function processGitHubQueueMessage(env: Env, message: GitHubQueueMessage) 
   );
 }
 
-async function resolveTaskCategoryId(
-  env: Env,
-  projectId: string,
-  name: string | null | undefined,
-): Promise<string | null> {
-  const normalized = name?.trim();
-  if (!normalized || !env.DB) return null;
-
-  const existing = await env.DB.prepare("SELECT id FROM task_categories WHERE project_id = ? AND name = ?")
-    .bind(projectId, normalized)
-    .first<{ id: string }>();
-  if (existing) return existing.id;
-
-  const id = crypto.randomUUID();
-  await env.DB.prepare("INSERT INTO task_categories (id, project_id, name) VALUES (?, ?, ?)")
-    .bind(id, projectId, normalized)
-    .run();
-  return id;
-}
-
-async function resolveTaskMilestoneId(
-  env: Env,
-  projectId: string,
-  name: string | null | undefined,
-  dueOn: string | null | undefined,
-): Promise<string | null> {
-  const normalized = name?.trim();
-  if (!normalized || !env.DB) return null;
-
-  const existing = await env.DB.prepare("SELECT id FROM task_milestones WHERE project_id = ? AND name = ?")
-    .bind(projectId, normalized)
-    .first<{ id: string }>();
-  if (existing) return existing.id;
-
-  const id = crypto.randomUUID();
-  await env.DB.prepare("INSERT INTO task_milestones (id, project_id, name, due_on) VALUES (?, ?, ?, ?)")
-    .bind(id, projectId, normalized, dueOn || null)
-    .run();
-  return id;
-}
-
-async function resolveTaskAssigneeId(env: Env, nameOrEmail: string | null | undefined): Promise<string | null> {
-  const normalized = nameOrEmail?.trim();
-  if (!normalized || !env.DB) return null;
-
-  const existing = await env.DB.prepare(
-    "SELECT id FROM users WHERE email = ? OR name = ? ORDER BY created_at ASC LIMIT 1",
-  )
-    .bind(normalized, normalized)
-    .first<{ id: string }>();
-  if (existing) return existing.id;
-
-  const email = normalized.includes("@") ? normalized : `${slugify(normalized)}@projectflare.local`;
-  const name = normalized.includes("@") ? normalized.split("@")[0] : normalized;
-  const id = stableId("usr", email);
-  await env.DB.prepare("INSERT OR IGNORE INTO users (id, email, name) VALUES (?, ?, ?)").bind(id, email, name).run();
-  return id;
-}
-
 async function notifyProject(env: Env, projectId: string, input: { title: string; body: string; source: string }) {
   if (!env.DB) return;
-
-  const notificationId = crypto.randomUUID();
-  await env.DB.prepare(
-    `INSERT INTO notifications (id, project_id, title, body, source)
-     VALUES (?, ?, ?, ?, ?)`,
-  )
-    .bind(notificationId, projectId, input.title, input.body, input.source)
-    .run();
-
-  const { results } = await env.DB.prepare(
-    `SELECT *
-     FROM notification_channels
-     WHERE project_id = ? AND enabled = 1`,
-  )
-    .bind(projectId)
-    .all<NotificationChannel>();
-
-  await Promise.all(results.map((channel) => sendNotificationChannel(channel, input)));
-}
-
-async function sendNotificationChannel(
-  channel: NotificationChannel,
-  input: { title: string; body: string; source: string },
-) {
-  const payload = notificationPayloadFor(channel, input);
-
-  try {
-    await fetch(channel.target_url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-  } catch (error) {
-    console.warn("Notification channel delivery failed", channel.id, error);
-  }
-}
-
-export function notificationPayloadFor(
-  channel: Pick<NotificationChannel, "channel_type">,
-  input: { title: string; body: string; source: string },
-) {
-  if (channel.channel_type === "slack") {
-    const text = `${input.title}: ${input.body}`;
-    return {
-      text,
-      blocks: [
-        {
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text: `*${escapeSlackText(input.title)}*\n${escapeSlackText(input.body)}`,
-          },
-        },
-        {
-          type: "context",
-          elements: [
-            {
-              type: "mrkdwn",
-              text: `ProjectFlare / ${escapeSlackText(input.source)}`,
-            },
-          ],
-        },
-      ],
-    };
-  }
-
-  return {
-    text: `${input.title}: ${input.body}`,
-    title: input.title,
-    body: input.body,
-    source: input.source,
-    projectflare: true,
-  };
-}
-
-function escapeSlackText(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  await notifyProjectUseCase(projectId, input, createNotificationUseCasePorts(env));
 }
 
 async function findProjectIdForGitHubRepository(env: Env, repositoryFullName: string): Promise<string | null> {
@@ -1236,239 +1018,4 @@ function bearerTokenFromRequest(request: Request): string | null {
   const auth = request.headers.get("authorization");
   if (auth?.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
   return request.headers.get("x-projectflare-token");
-}
-
-function stableId(prefix: string, value: string): string {
-  let hash = 0;
-  for (let index = 0; index < value.length; index += 1) {
-    hash = Math.imul(31, hash) + value.charCodeAt(index);
-  }
-  return `${prefix}_${Math.abs(hash).toString(36)}`;
-}
-
-function slugify(value: string): string {
-  const slug = value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return slug || `workspace-${Date.now()}`;
-}
-
-function demoWorkspaces(): Workspace[] {
-  return [
-    {
-      id: "ws_demo",
-      name: "ProjectFlare Demo",
-      slug: "demo",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    },
-  ];
-}
-
-function demoProjects() {
-  return [
-    {
-      id: "prj_launch",
-      workspace_id: "ws_demo",
-      workspace_name: "ProjectFlare Demo",
-      name: "Cloudflare Native MVP",
-      description: "Tasks, gantt, wiki, webhooks, and Access-backed users.",
-      status: "active",
-      starts_on: "2026-06-01",
-      due_on: "2026-07-15",
-      github_repository_url: "https://github.com/example/projectflare",
-    },
-  ];
-}
-
-function demoTasks(): Task[] {
-  const now = new Date().toISOString();
-  return [
-    {
-      id: "tsk_schema",
-      project_id: "prj_launch",
-      title: "Design D1 schema",
-      description: "Model the core project OS entities.",
-      status: "done",
-      priority: "high",
-      assignee_user_id: "usr_engineer",
-      assignee_name: "Platform Engineer",
-      parent_task_id: null,
-      category_id: "cat_platform",
-      category_name: "Platform",
-      category_color: "#2563eb",
-      milestone_id: "ms_mvp",
-      milestone_name: "MVP",
-      milestone_due_on: "2026-07-15",
-      tags: ["schema", "cloudflare"],
-      starts_on: "2026-06-01",
-      due_on: "2026-06-05",
-      progress: 100,
-      source: "seed",
-      external_url: null,
-      github_issue_url: null,
-      backlog_issue_url: null,
-      created_at: now,
-      updated_at: now,
-    },
-    {
-      id: "tsk_ui",
-      project_id: "prj_launch",
-      title: "Build project command center",
-      description: "Dense scanning surface for task and schedule work.",
-      status: "in_progress",
-      priority: "high",
-      assignee_user_id: "usr_pm",
-      assignee_name: "Project Manager",
-      parent_task_id: "tsk_schema",
-      category_id: "cat_product",
-      category_name: "Product",
-      category_color: "#16a34a",
-      milestone_id: "ms_mvp",
-      milestone_name: "MVP",
-      milestone_due_on: "2026-07-15",
-      tags: ["ui", "react"],
-      starts_on: "2026-06-04",
-      due_on: "2026-06-20",
-      progress: 55,
-      source: "seed",
-      external_url: null,
-      github_issue_url: null,
-      backlog_issue_url: null,
-      created_at: now,
-      updated_at: now,
-    },
-    {
-      id: "tsk_webhooks",
-      project_id: "prj_launch",
-      title: "Accept generic webhook tasks",
-      description: "Turn JSON payloads into triage tasks.",
-      status: "todo",
-      priority: "medium",
-      assignee_user_id: "usr_engineer",
-      assignee_name: "Platform Engineer",
-      parent_task_id: "tsk_ui",
-      category_id: "cat_integrations",
-      category_name: "Integrations",
-      category_color: "#9333ea",
-      milestone_id: "ms_integrations",
-      milestone_name: "Integrations",
-      milestone_due_on: "2026-07-01",
-      tags: ["webhook", "automation"],
-      starts_on: "2026-06-18",
-      due_on: "2026-06-28",
-      progress: 10,
-      source: "seed",
-      external_url: null,
-      github_issue_url: null,
-      backlog_issue_url: null,
-      created_at: now,
-      updated_at: now,
-    },
-  ];
-}
-
-function demoComments(taskId: string): TaskComment[] {
-  if (taskId !== "tsk_ui") return [];
-
-  const now = new Date().toISOString();
-  return [
-    {
-      id: "comment_demo",
-      task_id: taskId,
-      author_user_id: "usr_demo",
-      author_name: "ProjectFlare",
-      body: "Phase 1 should make task updates and comments usable from the first screen.",
-      created_at: now,
-      updated_at: now,
-    },
-  ];
-}
-
-function demoDependencies(): TaskDependency[] {
-  const now = new Date().toISOString();
-  return [
-    {
-      task_id: "tsk_ui",
-      depends_on_task_id: "tsk_schema",
-      task_title: "Build project command center",
-      depends_on_title: "Design D1 schema",
-      created_at: now,
-    },
-    {
-      task_id: "tsk_webhooks",
-      depends_on_task_id: "tsk_schema",
-      task_title: "Accept generic webhook tasks",
-      depends_on_title: "Design D1 schema",
-      created_at: now,
-    },
-  ];
-}
-
-function demoWikiPages(projectId: string): WikiPage[] {
-  const now = new Date().toISOString();
-  return [
-    {
-      id: "wiki_overview",
-      project_id: projectId,
-      parent_page_id: null,
-      title: "MVP Scope",
-      slug: "mvp-scope",
-      body_markdown:
-        "# MVP Scope\n\nProjectFlare starts as a Cloudflare-only project OS.\n\n- Task board\n- Gantt timeline\n- Markdown wiki\n- Webhook intake",
-      created_by_user_id: null,
-      updated_by_user_id: null,
-      created_at: now,
-      updated_at: now,
-    },
-  ];
-}
-
-function demoWikiRevisions(pageId: string): WikiRevision[] {
-  return [
-    {
-      id: "wiki_revision_demo",
-      wiki_page_id: pageId,
-      body_markdown: "# MVP Scope\n\nInitial demo revision.",
-      author_user_id: "usr_demo",
-      author_name: "ProjectFlare",
-      created_at: new Date().toISOString(),
-    },
-  ];
-}
-
-function demoGitHubRepositories(workspaceId: string): GitHubRepository[] {
-  const now = new Date().toISOString();
-  return [
-    {
-      id: "github_repo_demo",
-      github_integration_id: "github_integration_demo",
-      project_id: "prj_launch",
-      owner: "example",
-      name: "projectflare",
-      repository_url: "https://github.com/example/projectflare",
-      created_at: now,
-      updated_at: now,
-    },
-  ].filter(() => workspaceId === "ws_demo");
-}
-
-function demoWebhookEndpoints(projectId: string): WebhookEndpoint[] {
-  if (projectId !== "prj_launch") return [];
-
-  const now = new Date().toISOString();
-  return [
-    {
-      id: "webhook_endpoint_demo",
-      project_id: projectId,
-      name: "Demo intake",
-      secret_hash: "stored",
-      mapping_json: JSON.stringify({ source: "demo", defaultPriority: "medium" }),
-      enabled: 1,
-      created_at: now,
-      updated_at: now,
-    },
-  ];
 }
