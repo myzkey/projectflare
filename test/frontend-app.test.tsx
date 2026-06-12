@@ -90,10 +90,21 @@ describe("React app", () => {
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "Cloudflare Native MVP" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Language" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Language" }), { target: { value: "ja" } });
 
     expect(screen.getByText("概要")).toBeTruthy();
     expect(screen.getByText("タスク")).toBeTruthy();
     expect(document.documentElement.lang).toBe("ja");
+  });
+
+  it("supports RTL locales", async () => {
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Cloudflare Native MVP" })).toBeTruthy();
+    fireEvent.change(screen.getByRole("combobox", { name: "Language" }), { target: { value: "ar" } });
+
+    expect(screen.getByText("نظرة عامة")).toBeTruthy();
+    expect(document.documentElement.lang).toBe("ar");
+    expect(document.documentElement.dir).toBe("rtl");
   });
 });

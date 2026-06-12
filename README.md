@@ -4,11 +4,22 @@ Cloudflare-native project management for small teams.
 
 [日本語README](./README.ja.md)
 
-ProjectFlare is a lightweight project OS designed to run on Cloudflare Workers, D1, R2, Queues, and Zero Trust. It is meant for teams that want tasks, gantt planning, wiki notes, GitHub/webhook intake, and eventually MCP access without operating a VPS, Docker host, PostgreSQL, Redis, Nginx, or certificates.
+ProjectFlare is a lightweight project OS designed to run on Cloudflare Workers, D1, R2, Queues, and Zero Trust. It is meant for teams that want tasks, gantt planning, wiki notes, GitHub/webhook intake, multilingual admin screens, and eventually MCP access without operating a VPS, Docker host, PostgreSQL, Redis, Nginx, or certificates.
 
-## MVP Surface
+ProjectFlare is not trying to replace Jira, Linear, Notion, Redmine, or OpenProject in one jump. The goal is a small, Cloudflare-native operations layer that makes project work visible to engineers, non-engineers, webhooks, GitHub, and AI agents.
 
-- Cloudflare Worker serving both API and the first app screen
+## Positioning
+
+- GitHub: implementation tracking
+- ProjectFlare: project tracking and delivery status
+- Wiki: specs, background, decisions, and runbooks
+- Gantt: schedule and dependency visibility
+- Webhooks: intake from external systems
+- MCP: future AI-agent operation surface
+
+## Current Surface
+
+- Cloudflare Worker serving API and the React admin UI
 - D1 schema for workspaces, projects, tasks, comments, wiki, webhooks, GitHub integration records, attachments, and audit logs
 - Cloudflare Access-aware user bootstrap from request headers
 - Workspace and project creation
@@ -20,8 +31,34 @@ ProjectFlare is a lightweight project OS designed to run on Cloudflare Workers, 
 - Tokenized generic webhook endpoints, app notifications, and outgoing Slack/Lark/webhook notification channels
 - Generic webhook endpoint that can create tasks from JSON
 - Queue producer hook for webhook/GitHub-style async processing
+- React/Vite admin UI with a dense project command-center layout
+- Frontend localization for `ar`, `de`, `en`, `es-419`, `es-ES`, `eu`, `fa`, `fr`, `id`, `ja`, `ko`, `nb`, `pl`, `pseudo`, `pt-BR`, `th`, `zh-CN`, and `zh-TW`
+- RTL document direction for Arabic and Persian
+- Biome linting/formatting, Vitest coverage, TypeScript type checking, and Conventional Commits
 
-## Phase 1 API
+## Architecture
+
+ProjectFlare follows a Clean Architecture direction in a small pnpm workspace:
+
+```txt
+apps/web                 React admin UI
+packages/core           domain models, use cases, and ports
+packages/cloudflare     Worker entrypoint, HTTP presentation, D1 adapters, Cloudflare bindings
+migrations              D1 migrations and seed data
+test                    unit and Worker/API tests
+```
+
+The intended dependency direction is:
+
+```txt
+apps/web -> HTTP API
+packages/cloudflare -> packages/core
+packages/core -> no Cloudflare runtime dependency
+```
+
+Core business rules live in `packages/core`. Cloudflare-specific code, D1 SQL, queue integration, and request/response handling live in `packages/cloudflare`. The React app talks to ProjectFlare through the HTTP API and keeps UI concerns out of the domain package.
+
+## Implemented API
 
 - `GET /api/me`
 - `GET /api/workspaces`
@@ -54,7 +91,16 @@ ProjectFlare is a lightweight project OS designed to run on Cloudflare Workers, 
 - `GET /api/projects/:projectId/notifications`
 - `PATCH /api/notifications/:notificationId`
 
-## Phase 2 Surface
+## Phase 1: Workspaces, Projects, Tasks, Comments
+
+- Bootstrap the current user from Cloudflare Access headers
+- Create and list workspaces and projects
+- Create tasks with status, priority, assignee, dates, progress, source, labels, and external URL fields
+- Update task status, priority, progress, dates, and metadata
+- Add and list task comments
+- Render a scan-friendly overview with status metrics and a task table
+
+## Phase 2: Planning And Wiki
 
 - Add task dependencies and show them in the gantt area
 - Create and edit Markdown wiki pages
@@ -62,7 +108,7 @@ ProjectFlare is a lightweight project OS designed to run on Cloudflare Workers, 
 - Store a wiki revision every time a page is created or updated
 - List wiki revisions for the selected page
 
-## Phase 3 Surface
+## Phase 3: GitHub Sync
 
 - Link a GitHub repository to a ProjectFlare project
 - Receive GitHub webhooks at `/api/github/webhook`
@@ -78,7 +124,7 @@ For local development, the GitHub webhook secret is optional. In production, set
 wrangler secret put GITHUB_WEBHOOK_SECRET
 ```
 
-## Phase 4 Surface
+## Phase 4: Webhooks And Notifications
 
 - Create tokenized generic webhook endpoints per project
 - Accept `Authorization: Bearer <token>` or `X-ProjectFlare-Token`
@@ -89,9 +135,24 @@ wrangler secret put GITHUB_WEBHOOK_SECRET
 
 Generic webhook endpoints created in the UI return the token once. Store it in the external system that will send tasks into ProjectFlare.
 
+## Frontend
+
+The admin UI is a React/Vite app under `apps/web`. It includes:
+
+- Project switcher, summary metrics, task table, and comment panel
+- Gantt-style planning view with dependency labels
+- Markdown wiki editor, preview, page list, and revision list
+- Integration view for GitHub events, generic webhook endpoints, notification channels, and app notifications
+- Language picker covering the currently supported 18 locales
+
+The language choice is stored in `localStorage` as `projectflare.locale`.
+
 ## Local Setup
 
+ProjectFlare uses asdf for Node.js version management.
+
 ```sh
+asdf install
 pnpm install
 pnpm db:migrate:local
 pnpm dev
@@ -105,15 +166,22 @@ For UI-only iteration, run the Vite dev server:
 pnpm dev:ui
 ```
 
-## Repository Layout
+## Quality Checks
 
-ProjectFlare is organized as a small pnpm workspace inspired by EmDash:
+Run the full local gate before pushing:
 
-```txt
-apps/web                 React admin UI
-packages/core           domain, use cases, and ports
-packages/cloudflare     Worker entrypoint and Cloudflare adapters
-migrations              D1 migrations
+```sh
+pnpm check
+pnpm build
+```
+
+Useful individual commands:
+
+```sh
+pnpm typecheck
+pnpm lint
+pnpm format
+pnpm test
 ```
 
 ## Commit Messages
@@ -184,9 +252,13 @@ Example:
 
 ## Roadmap
 
-- Phase 1: Workers API, D1 schema, Access user bootstrap, workspace/project/task/comment UI
-- Phase 2: Gantt dependencies, markdown wiki editing, wiki revisions
-- Phase 3: GitHub App, issue/PR sync, webhook signature verification, queue consumers
-- Phase 4: Generic webhook mapping, tokens, Slack/Lark/app notifications
+- Phase 1: Workers API, D1 schema, Access user bootstrap, workspace/project/task/comment UI - implemented
+- Phase 2: Gantt dependencies, markdown wiki editing, wiki revisions - implemented
+- Phase 3: GitHub repository linking, issue/comment/PR sync, webhook signature verification, queue processing - implemented
+- Phase 4: Generic webhook mapping, tokens, Slack/Lark/app notifications - implemented
 - Phase 5: MCP server with project/task/wiki read and task creation tools
 - Phase 6: Backlog sync exploration
+
+## Non-Goals
+
+The early ProjectFlare scope deliberately avoids becoming a full Jira, Linear, Notion, or Redmine clone. The priority is a lightweight Cloudflare-only base that connects tasks, GitHub, wiki notes, gantt planning, and webhook intake with a low-operations footprint.

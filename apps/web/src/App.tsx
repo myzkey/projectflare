@@ -16,7 +16,15 @@ import {
 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { api } from "./api";
-import { detectInitialLocale, dictionaries, type Locale, localeNames, type Messages } from "./i18n";
+import {
+  detectInitialLocale,
+  dictionaries,
+  type Locale,
+  localeDirections,
+  localeNames,
+  type Messages,
+  supportedLocales,
+} from "./i18n";
 import type {
   AccessUser,
   GitHubEvent,
@@ -85,6 +93,7 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.lang = locale;
+    document.documentElement.dir = localeDirections[locale];
     localStorage.setItem("projectflare.locale", locale);
   }, [locale]);
 
@@ -337,15 +346,20 @@ export function App() {
             <p>{project?.description ?? messages.projectFallback}</p>
           </div>
           <div className="top-actions">
-            <button
-              type="button"
-              className="language-button"
-              aria-label={messages.language.label}
-              onClick={() => setLocale(locale === "en" ? "ja" : "en")}
-            >
-              <span>{localeNames[locale]}</span>
-              <strong>{messages.language.switchTo}</strong>
-            </button>
+            <label className="language-picker">
+              <span>{messages.language.label}</span>
+              <select
+                aria-label={messages.language.label}
+                value={locale}
+                onChange={(event) => setLocale(event.currentTarget.value as Locale)}
+              >
+                {supportedLocales.map((localeOption) => (
+                  <option key={localeOption} value={localeOption}>
+                    {localeNames[localeOption]}
+                  </option>
+                ))}
+              </select>
+            </label>
             <span className="signal">
               <Sparkles size={16} />
               {project?.github_repository_url ? messages.githubLinked : messages.ready}
