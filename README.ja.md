@@ -38,30 +38,7 @@ Jira、Linear、Notion、Redmine、OpenProject の完全な置き換えを最初
 
 - [アーキテクチャ](./docs/architecture.md)
 
-## Phase 1: ワークスペース、プロジェクト、タスク、コメント
-
-- Cloudflare Access header から現在のユーザーを自動作成
-- ワークスペースとプロジェクトの作成/一覧
-- ステータス、優先度、担当者、開始日、期限日、進捗率、source、label、外部URLを持つタスク作成
-- タスクのステータス、優先度、進捗率、日付、メタデータ更新
-- 最新順・件数制限・本文省略に対応したタスクコメントの追加/一覧
-- タスクへの画像・軽量動画添付
-- タスク添付のMarkdownをコメントへ挿入
-- タスクコメントエディタへのメディアのペースト/ドロップ
-- ステータス集計とタスク表を含む概要画面
-
-## Phase 2: 計画とWiki
-
-- タスク依存関係を追加し、ガント領域に表示
-- Lexical リッチエディタによる Markdown Wikiページの作成と編集
-- Wiki本文はMarkdown文字列として保存
-- Wikiページ作成/更新ごとのrevision保存
-- 選択中Wikiページのrevision一覧表示
-- Wikiへのメディア添付とMarkdown snippetの利用
-- Wikiメディアsnippetを本文エディタへ挿入
-- Wiki本文エディタへのメディアのペースト/ドロップ
-
-## Phase 3: GitHub同期
+## GitHub同期
 
 - GitHub RepositoryをProjectFlareプロジェクトへ紐づけ
 - `/api/github/webhook` でGitHub Webhookを受信
@@ -77,7 +54,7 @@ Jira、Linear、Notion、Redmine、OpenProject の完全な置き換えを最初
 wrangler secret put GITHUB_WEBHOOK_SECRET
 ```
 
-## Phase 4: Webhookと通知
+## Webhookと通知
 
 - プロジェクトごとのトークン付きGeneric Webhook endpoint作成
 - `Authorization: Bearer <token>` または `X-ProjectFlare-Token` による受信認証
@@ -209,15 +186,6 @@ pnpm deploy
   "externalUrl": "https://example.com/cases/123"
 }
 ```
-
-## ロードマップ
-
-- Phase 1: Workers API、D1 schema、Accessユーザー自動作成、ワークスペース/プロジェクト/タスク/コメントUI - 実装済み
-- Phase 2: ガント依存関係、Markdown Wiki編集、Wiki revision - 実装済み
-- Phase 3: GitHub Repository連携、Issue/Comment/PR同期、Webhook署名検証、Queue処理 - 実装済み
-- Phase 4: Generic Webhook mapping、API token、Slack/Lark/アプリ内通知 - 実装済み
-- Phase 5: プロジェクト/タスク/Wikiの読み取りとタスク作成に対応したMCP server
-- Phase 6: Backlog連携の検討
 
 ## 作らないもの
 

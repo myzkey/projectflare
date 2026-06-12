@@ -40,30 +40,7 @@ ProjectFlare is not trying to replace Jira, Linear, Notion, Redmine, or OpenProj
 
 - [Architecture](./docs/architecture.md)
 
-## Phase 1: Workspaces, Projects, Tasks, Comments
-
-- Bootstrap the current user from Cloudflare Access headers
-- Create and list workspaces and projects
-- Create tasks with status, priority, assignee, dates, progress, source, labels, and external URL fields
-- Update task status, priority, progress, dates, and metadata
-- Add and list latest-first task comments with bounded loading and per-comment truncation
-- Upload image or lightweight video attachments to tasks
-- Insert task attachment Markdown into comments
-- Paste or drop task comment media directly into the editor
-- Render a scan-friendly overview with status metrics and a task table
-
-## Phase 2: Planning And Wiki
-
-- Add task dependencies and show them in the gantt area
-- Create and edit Markdown wiki pages with a Lexical rich editor
-- Keep Markdown as the persisted wiki format
-- Store a wiki revision every time a page is created or updated
-- List wiki revisions for the selected page
-- Upload wiki media and copy Markdown snippets
-- Insert wiki media snippets into the editor body
-- Paste or drop wiki media directly into the editor body
-
-## Phase 3: GitHub Sync
+## GitHub Sync
 
 - Link a GitHub repository to a ProjectFlare project
 - Receive GitHub webhooks at `/api/github/webhook`
@@ -79,7 +56,7 @@ For local development, the GitHub webhook secret is optional. In production, set
 wrangler secret put GITHUB_WEBHOOK_SECRET
 ```
 
-## Phase 4: Webhooks And Notifications
+## Webhooks And Notifications
 
 - Create tokenized generic webhook endpoints per project
 - Accept `Authorization: Bearer <token>` or `X-ProjectFlare-Token`
@@ -211,15 +188,6 @@ Example:
   "externalUrl": "https://example.com/cases/123"
 }
 ```
-
-## Roadmap
-
-- Phase 1: Workers API, D1 schema, Access user bootstrap, workspace/project/task/comment UI - implemented
-- Phase 2: Gantt dependencies, markdown wiki editing, wiki revisions - implemented
-- Phase 3: GitHub repository linking, issue/comment/PR sync, webhook signature verification, queue processing - implemented
-- Phase 4: Generic webhook mapping, tokens, Slack/Lark/app notifications - implemented
-- Phase 5: MCP server with project/task/wiki read and task creation tools
-- Phase 6: Backlog sync exploration
 
 ## Non-Goals
 
