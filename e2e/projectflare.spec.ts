@@ -16,7 +16,7 @@ test("creates a task and adds a comment", async ({ page }) => {
   const commentBody = `E2E comment ${stamp}`;
 
   await page.getByPlaceholder("Task title").fill(taskTitle);
-  await page.getByPlaceholder("Description", { exact: true }).fill("Created by Playwright");
+  await page.getByLabel("Description", { exact: true }).fill("Created by Playwright");
   await page.getByPlaceholder("Assignee").fill("E2E Owner");
   await page.getByPlaceholder("Category").fill("QA");
   await page.getByPlaceholder("Tags").fill("playwright, smoke");
@@ -36,10 +36,18 @@ test("creates a task and adds a comment", async ({ page }) => {
   await expect(page.locator(".task-row").filter({ hasText: childTitle })).toBeVisible();
   await taskRow.getByRole("button", { name: taskTitle }).click();
 
-  await page.getByPlaceholder("Write a comment").fill(commentBody);
-  await page.locator(".inline-form button[type='submit']").click();
+  await page.getByLabel("Write a comment").fill(commentBody);
+  await page.locator(".comment-panel .inline-form button[type='submit']").click();
 
   await expect(page.getByText(commentBody)).toBeVisible();
+
+  await page.getByLabel("Image or video file").setInputFiles({
+    name: "task-image.png",
+    mimeType: "image/png",
+    buffer: Buffer.from([137, 80, 78, 71]),
+  });
+  await page.getByRole("button", { name: "Upload media" }).click();
+  await expect(page.locator(".attachment-card").filter({ hasText: "task-image.png" }).first()).toBeVisible();
 });
 
 test("updates task status and saves wiki content", async ({ page }) => {
@@ -57,10 +65,18 @@ test("updates task status and saves wiki content", async ({ page }) => {
   await page.getByRole("button", { name: "Wiki", exact: true }).click();
   await page.getByPlaceholder("Page title").fill(wikiTitle);
   await page.getByPlaceholder("slug").fill(wikiSlug);
-  await page.getByPlaceholder("Markdown body").fill("# E2E Wiki\n\nSaved by Playwright.");
+  await page.getByLabel("Markdown body").fill("# E2E Wiki\n\nSaved by Playwright.");
   await page.getByRole("button", { name: "Save page" }).click();
 
-  await expect(page.getByText(wikiTitle)).toBeVisible();
+  await expect(page.getByRole("button", { name: new RegExp(wikiTitle) })).toBeVisible();
+
+  await page.getByLabel("Image or video file").setInputFiles({
+    name: "wiki-image.png",
+    mimeType: "image/png",
+    buffer: Buffer.from([137, 80, 78, 71]),
+  });
+  await page.getByRole("button", { name: "Upload media" }).click();
+  await expect(page.locator(".attachment-card").filter({ hasText: "wiki-image.png" }).first()).toBeVisible();
 });
 
 test("creates a generic webhook endpoint from integrations", async ({ page }) => {

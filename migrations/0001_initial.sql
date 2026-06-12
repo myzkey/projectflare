@@ -150,15 +150,18 @@ CREATE TABLE IF NOT EXISTS wiki_revisions (
 CREATE TABLE IF NOT EXISTS attachments (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   object_key TEXT NOT NULL,
   filename TEXT NOT NULL,
   content_type TEXT,
   byte_size INTEGER,
-  attachable_type TEXT NOT NULL CHECK (attachable_type IN ('project', 'task', 'wiki_page')),
+  attachable_type TEXT NOT NULL CHECK (attachable_type IN ('task', 'wiki_page')),
   attachable_id TEXT NOT NULL,
   created_by_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE INDEX IF NOT EXISTS attachments_owner_idx ON attachments(attachable_type, attachable_id, created_at);
 
 CREATE TABLE IF NOT EXISTS webhook_endpoints (
   id TEXT PRIMARY KEY,

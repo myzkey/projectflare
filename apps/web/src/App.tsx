@@ -11,6 +11,7 @@ import {
 } from "../../../packages/admin/src/i18n";
 import type {
   AccessUser,
+  Attachment,
   GitHubEvent,
   GitHubRepository,
   InstalledPlugin,
@@ -41,8 +42,10 @@ export function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [dependencies, setDependencies] = useState<TaskDependency[]>([]);
   const [comments, setComments] = useState<TaskComment[]>([]);
+  const [taskAttachments, setTaskAttachments] = useState<Attachment[]>([]);
   const [wikiPages, setWikiPages] = useState<WikiPage[]>([]);
   const [wikiRevisions, setWikiRevisions] = useState<WikiRevision[]>([]);
+  const [wikiAttachments, setWikiAttachments] = useState<Attachment[]>([]);
   const [githubRepos, setGitHubRepos] = useState<GitHubRepository[]>([]);
   const [githubEvents, setGitHubEvents] = useState<GitHubEvent[]>([]);
   const [webhookEndpoints, setWebhookEndpoints] = useState<WebhookEndpoint[]>([]);
@@ -87,22 +90,28 @@ export function App() {
   useEffect(() => {
     if (!selectedTaskIdForLoad) {
       setComments([]);
+      setTaskAttachments([]);
       return;
     }
-    void api
-      .comments(selectedTaskIdForLoad)
-      .then(setComments)
+    void Promise.all([api.comments(selectedTaskIdForLoad), api.taskAttachments(selectedTaskIdForLoad)])
+      .then(([nextComments, nextAttachments]) => {
+        setComments(nextComments);
+        setTaskAttachments(nextAttachments);
+      })
       .catch((caught) => setError(caught instanceof Error ? caught.message : messages.overview.unknown));
   }, [selectedTaskIdForLoad, messages.overview.unknown]);
 
   useEffect(() => {
     if (!selectedWikiPageIdForLoad) {
       setWikiRevisions([]);
+      setWikiAttachments([]);
       return;
     }
-    void api
-      .wikiRevisions(selectedWikiPageIdForLoad)
-      .then(setWikiRevisions)
+    void Promise.all([api.wikiRevisions(selectedWikiPageIdForLoad), api.wikiAttachments(selectedWikiPageIdForLoad)])
+      .then(([nextRevisions, nextAttachments]) => {
+        setWikiRevisions(nextRevisions);
+        setWikiAttachments(nextAttachments);
+      })
       .catch((caught) => setError(caught instanceof Error ? caught.message : messages.overview.unknown));
   }, [selectedWikiPageIdForLoad, messages.overview.unknown]);
 
@@ -233,6 +242,18 @@ export function App() {
     });
   }
 
+  async function uploadTaskAttachment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedTask) return;
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    await run(async () => {
+      await api.uploadTaskAttachment(selectedTask.id, data);
+      form.reset();
+      setTaskAttachments(await api.taskAttachments(selectedTask.id));
+    });
+  }
+
   async function createDependency(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget).entries());
@@ -251,6 +272,19 @@ export function App() {
       const saved = await api.saveWikiPage(project.id, selectedWikiPage?.id ?? null, body);
       setSelectedWikiPageId(saved.id);
       await refreshProject();
+    });
+  }
+
+  async function uploadWikiAttachment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedWikiPage) return;
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    await run(async () => {
+      const attachment = await api.uploadWikiAttachment(selectedWikiPage.id, data);
+      form.reset();
+      setWikiAttachments(await api.wikiAttachments(selectedWikiPage.id));
+      setNotice(attachment.markdown);
     });
   }
 
@@ -422,11 +456,13 @@ export function App() {
             tasks={tasks}
             selectedTask={selectedTask}
             comments={comments}
+            attachments={taskAttachments}
             onSelectTask={setSelectedTaskId}
             onSaveTask={saveTask}
             onCreateTask={createTask}
             onCreateProject={createProject}
             onCreateComment={createComment}
+            onUploadAttachment={uploadTaskAttachment}
             messages={messages}
             locale={locale}
           />
@@ -439,8 +475,10 @@ export function App() {
             pages={wikiPages}
             selectedPage={selectedWikiPage}
             revisions={wikiRevisions}
+            attachments={wikiAttachments}
             onSelectPage={setSelectedWikiPageId}
             onSaveWiki={saveWiki}
+            onUploadAttachment={uploadWikiAttachment}
             messages={messages}
             locale={locale}
           />

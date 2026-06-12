@@ -1,5 +1,10 @@
 import { handleGenericWebhookUseCase } from "../../../../core/src/application/usecases/handle-generic-webhook";
 import {
+  getAttachmentContentUseCase,
+  listAttachmentsUseCase,
+  uploadAttachmentUseCase,
+} from "../../../../core/src/application/usecases/manage-attachments";
+import {
   createGitHubRepositoryUseCase,
   listGitHubRepositoriesUseCase,
 } from "../../../../core/src/application/usecases/manage-github-repositories";
@@ -50,6 +55,7 @@ import {
   updateWikiPageUseCase,
 } from "../../../../core/src/application/usecases/manage-wiki";
 import { processGitHubWebhookUseCase } from "../../../../core/src/application/usecases/process-github-webhook";
+import type { AttachmentOwnerType } from "../../../../core/src/domain/attachment";
 import { ApplicationError } from "../../../../core/src/domain/errors";
 import { type GitHubWebhookPayload, repositoryFullNameFromPayload } from "../../../../core/src/domain/github";
 import type { NotificationChannel } from "../../../../core/src/domain/notification";
@@ -59,6 +65,7 @@ import { verifyGitHubSignature } from "../../../../core/src/domain/security";
 import { type Task as DomainTask, taskStatusLabels } from "../../../../core/src/domain/task";
 import type { WikiPage } from "../../../../core/src/domain/wiki";
 import type { GitHubQueueMessage, ProjectFlareQueueMessage } from "../../../../core/src/ports/queue";
+import { createAttachmentUseCasePorts } from "../../infrastructure/cloudflare/d1/attachment-repository";
 import { createGenericWebhookPorts } from "../../infrastructure/cloudflare/d1/generic-webhook-adapter";
 import { createGitHubRepositoryUseCasePorts } from "../../infrastructure/cloudflare/d1/github-repository";
 import { createGitHubSyncPorts } from "../../infrastructure/cloudflare/d1/github-sync-adapter";
@@ -197,6 +204,11 @@ export default {
         if (request.method === "GET") return json(await listTaskComments(env, taskId));
         if (request.method === "POST") return json(await createTaskComment(request, env, taskId), 201);
       }
+      if (path.match(/^\/api\/tasks\/[^/]+\/attachments$/)) {
+        const taskId = path.split("/")[3];
+        if (request.method === "GET") return json(await listAttachments(env, "task", taskId));
+        if (request.method === "POST") return json(await uploadAttachment(request, env, "task", taskId), 201);
+      }
       if (path.match(/^\/api\/wiki\/[^/]+$/)) {
         const pageId = path.split("/")[3];
         if (request.method === "GET") return json(await getWikiPage(env, pageId));
@@ -205,6 +217,15 @@ export default {
       if (path.match(/^\/api\/wiki\/[^/]+\/revisions$/) && request.method === "GET") {
         const pageId = path.split("/")[3];
         return json(await listWikiRevisions(env, pageId));
+      }
+      if (path.match(/^\/api\/wiki\/[^/]+\/attachments$/)) {
+        const pageId = path.split("/")[3];
+        if (request.method === "GET") return json(await listAttachments(env, "wiki_page", pageId));
+        if (request.method === "POST") return json(await uploadAttachment(request, env, "wiki_page", pageId), 201);
+      }
+      if (path.match(/^\/api\/attachments\/[^/]+\/content$/) && request.method === "GET") {
+        const attachmentId = path.split("/")[3];
+        return attachmentContent(env, attachmentId);
       }
       if (path.match(/^\/api\/notifications\/[^/]+$/) && request.method === "PATCH") {
         const notificationId = path.split("/")[3];
@@ -704,6 +725,42 @@ async function createTaskComment(request: Request, env: Env, taskId: string) {
   }
 
   return comment;
+}
+
+async function listAttachments(env: Env, ownerType: AttachmentOwnerType, ownerId: string) {
+  return listAttachmentsUseCase({ ownerType, ownerId }, createAttachmentUseCasePorts(env));
+}
+
+async function uploadAttachment(request: Request, env: Env, ownerType: AttachmentOwnerType, ownerId: string) {
+  const user = await getOrCreateAccessUser(request, env);
+  const form = await request.formData();
+  const file = form.get("file");
+  if (!(file instanceof File)) throw new ApplicationError("attachment_file_required", 400);
+
+  return uploadAttachmentUseCase(
+    {
+      ownerType,
+      ownerId,
+      filename: file.name,
+      contentType: file.type || "application/octet-stream",
+      byteSize: file.size,
+      body: await file.arrayBuffer(),
+      createdByUserId: user.id,
+    },
+    createAttachmentUseCasePorts(env),
+  );
+}
+
+async function attachmentContent(env: Env, attachmentId: string) {
+  const content = await getAttachmentContentUseCase(attachmentId, createAttachmentUseCasePorts(env));
+  return new Response(content.body, {
+    headers: {
+      "content-type": content.contentType,
+      "content-length": String(content.byteSize),
+      "cache-control": "public, max-age=31536000, immutable",
+      "content-disposition": `inline; filename="${content.attachment.filename.replaceAll('"', "")}"`,
+    },
+  });
 }
 
 async function handleGitHubWebhook(request: Request, env: Env) {

@@ -102,6 +102,19 @@ packages/cloudflare/src/presentation/http/worker.ts
       <- packages/cloudflare/src/infrastructure/cloudflare/d1/wiki-repository.ts
 ```
 
+Attachments:
+
+```txt
+packages/cloudflare/src/presentation/http/worker.ts
+  -> packages/core/src/application/usecases/manage-attachments.ts
+    -> packages/core/src/domain/attachment.ts
+    -> packages/core/src/ports/attachments.ts
+      <- packages/cloudflare/src/infrastructure/cloudflare/d1/attachment-repository.ts
+      <- Cloudflare R2 FILES binding
+```
+
+Attachment use cases validate image and lightweight video uploads and keep ownership rules in core. D1 stores metadata and R2 stores object content.
+
 GitHub webhook processing:
 
 ```txt
@@ -175,11 +188,14 @@ React admin UI:
 ```txt
 apps/web/src/App.tsx          # data loading, route/tab state, event wiring
 apps/web/src/views.tsx        # Overview, Plan, Wiki, Integrations, Plugins
+apps/web/src/MarkdownEditor.tsx # Lexical editor that imports/exports Markdown
 apps/web/src/components.tsx   # shared presentational primitives
 packages/admin/src/*          # API client, DTO types, locale catalogs
 ```
 
 API responses are camelCase at the HTTP boundary. The admin client adapts them back into the current UI model while the D1 adapters keep snake_case close to SQL.
+
+The editor UI uses Lexical for rich editing, Markdown shortcuts, history, links, lists, quotes, headings, and code blocks. Persistence stays Markdown-first so D1 records and webhook/API payloads remain portable text.
 
 ## Refactoring Rule
 

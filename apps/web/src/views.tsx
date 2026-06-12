@@ -2,8 +2,10 @@ import {
   Bell,
   BookOpenText,
   CheckCircle2,
+  Copy,
   GitBranch,
   GitPullRequest,
+  Image,
   Link2,
   MessageSquare,
   PlugZap,
@@ -14,9 +16,10 @@ import {
   Send,
   ShieldCheck,
 } from "lucide-react";
-import { type CSSProperties, type FormEvent, useMemo } from "react";
+import { type CSSProperties, type FormEvent, lazy, Suspense, useMemo } from "react";
 import type { Locale, Messages } from "../../../packages/admin/src/i18n";
 import type {
+  Attachment,
   GitHubEvent,
   GitHubRepository,
   InstalledPlugin,
@@ -44,6 +47,8 @@ import {
   timelinePosition,
 } from "./components";
 
+const MarkdownEditor = lazy(() => import("./MarkdownEditor"));
+
 const statuses: TaskStatus[] = ["todo", "in_progress", "review", "done", "archived"];
 const priorities: TaskPriority[] = ["low", "medium", "high", "urgent"];
 
@@ -54,11 +59,13 @@ export function Overview(props: {
   tasks: Task[];
   selectedTask: Task | null;
   comments: TaskComment[];
+  attachments: Attachment[];
   onSelectTask(id: string): void;
   onSaveTask(task: Task, patch: Partial<Task>): Promise<void>;
   onCreateTask(event: FormEvent<HTMLFormElement>): Promise<void>;
   onCreateProject(event: FormEvent<HTMLFormElement>): Promise<void>;
   onCreateComment(event: FormEvent<HTMLFormElement>): Promise<void>;
+  onUploadAttachment(event: FormEvent<HTMLFormElement>): Promise<void>;
   messages: Messages;
   locale: Locale;
 }) {
@@ -134,7 +141,12 @@ export function Overview(props: {
         />
         <form className="form-grid" onSubmit={(event) => void props.onCreateTask(event)}>
           <input name="title" placeholder={props.messages.overview.taskTitle} required />
-          <textarea name="description" placeholder={props.messages.overview.description} />
+          <LazyMarkdownEditor
+            name="description"
+            placeholder={props.messages.overview.description}
+            ariaLabel={props.messages.overview.description}
+            compact={true}
+          />
           <input name="categoryName" list="task-categories" placeholder={props.messages.overview.category} />
           <datalist id="task-categories">
             {categoryNames.map((name) => (
@@ -213,9 +225,36 @@ export function Overview(props: {
           )}
         </div>
         <form className="inline-form" onSubmit={(event) => void props.onCreateComment(event)}>
-          <input name="body" placeholder={props.messages.overview.writeComment} required />
+          <LazyMarkdownEditor
+            name="body"
+            placeholder={props.messages.overview.writeComment}
+            ariaLabel={props.messages.overview.writeComment}
+            compact={true}
+          />
           <button type="submit">
             <Send size={16} />
+          </button>
+        </form>
+      </section>
+
+      <section className="panel attachment-panel">
+        <PanelTitle
+          icon={<Image size={18} />}
+          title={props.messages.overview.attachments}
+          meta={props.selectedTask?.title ?? props.messages.overview.noTask}
+        />
+        <AttachmentGrid attachments={props.attachments} emptyLabel={props.messages.overview.emptyMedia} />
+        <form className="inline-form" onSubmit={(event) => void props.onUploadAttachment(event)}>
+          <input
+            name="file"
+            type="file"
+            accept="image/*,video/*"
+            aria-label={props.messages.overview.mediaFile}
+            required
+          />
+          <button type="submit">
+            <Image size={16} />
+            {props.messages.overview.uploadMedia}
           </button>
         </form>
       </section>
@@ -299,8 +338,10 @@ export function Wiki(props: {
   pages: WikiPage[];
   selectedPage: WikiPage | null;
   revisions: WikiRevision[];
+  attachments: Attachment[];
   onSelectPage(id: string): void;
   onSaveWiki(event: FormEvent<HTMLFormElement>): Promise<void>;
+  onUploadAttachment(event: FormEvent<HTMLFormElement>): Promise<void>;
   messages: Messages;
   locale: Locale;
 }) {
@@ -339,10 +380,12 @@ export function Wiki(props: {
             required
           />
           <input name="slug" placeholder={props.messages.wiki.slug} defaultValue={props.selectedPage?.slug ?? ""} />
-          <textarea
+          <LazyMarkdownEditor
+            key={props.selectedPage?.id ?? "new-wiki-page"}
             name="body_markdown"
             placeholder={props.messages.wiki.markdownBody}
-            defaultValue={props.selectedPage?.body_markdown ?? ""}
+            ariaLabel={props.messages.wiki.markdownBody}
+            value={props.selectedPage?.body_markdown ?? ""}
           />
           <button type="submit">
             <Save size={16} />
@@ -365,6 +408,27 @@ export function Wiki(props: {
             </article>
           ))}
         </div>
+      </aside>
+
+      <aside className="panel attachment-panel">
+        <PanelTitle
+          icon={<Image size={18} />}
+          title={props.messages.wiki.attachments}
+          meta={props.selectedPage?.title ?? props.messages.overview.noTask}
+        />
+        <AttachmentGrid
+          attachments={props.attachments}
+          showMarkdown={true}
+          copyLabel={props.messages.wiki.copyMarkdown}
+          emptyLabel={props.messages.wiki.emptyMedia}
+        />
+        <form className="form-grid compact" onSubmit={(event) => void props.onUploadAttachment(event)}>
+          <input name="file" type="file" accept="image/*,video/*" aria-label={props.messages.wiki.mediaFile} required />
+          <button type="submit">
+            <Image size={16} />
+            {props.messages.wiki.uploadMedia}
+          </button>
+        </form>
       </aside>
     </section>
   );
@@ -631,6 +695,70 @@ function TaskChips({ task }: { task: Task }) {
         <small key={chip}>{chip}</small>
       ))}
     </span>
+  );
+}
+
+function AttachmentGrid(props: {
+  attachments: Attachment[];
+  showMarkdown?: boolean;
+  copyLabel?: string;
+  emptyLabel: string;
+}) {
+  if (!props.attachments.length) return <p className="empty">{props.emptyLabel}</p>;
+
+  return (
+    <div className="attachment-grid">
+      {props.attachments.map((attachment) => (
+        <article key={attachment.id} className="attachment-card">
+          <a href={attachment.url} target="_blank" rel="noreferrer">
+            {attachment.content_type.startsWith("video/") ? (
+              <video src={attachment.url} controls preload="metadata">
+                <track kind="captions" />
+              </video>
+            ) : (
+              <img src={attachment.url} alt={attachment.filename} />
+            )}
+          </a>
+          <strong>{attachment.filename}</strong>
+          <small>{Math.ceil(attachment.byte_size / 1024)} KB</small>
+          {props.showMarkdown && (
+            <button
+              type="button"
+              onClick={() => void navigator.clipboard?.writeText(attachment.markdown)}
+              title={attachment.markdown}
+            >
+              <Copy size={15} />
+              {props.copyLabel}
+            </button>
+          )}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function LazyMarkdownEditor(props: {
+  name: string;
+  value?: string | null;
+  placeholder: string;
+  ariaLabel: string;
+  compact?: boolean;
+}) {
+  return (
+    <Suspense fallback={<EditorFallback compact={props.compact} placeholder={props.placeholder} />}>
+      <MarkdownEditor {...props} />
+    </Suspense>
+  );
+}
+
+function EditorFallback(props: { compact?: boolean; placeholder: string }) {
+  return (
+    <div className={props.compact ? "markdown-editor compact loading" : "markdown-editor loading"}>
+      <div className="markdown-editor-toolbar" />
+      <div className="markdown-editor-input">
+        <span className="markdown-editor-loading">{props.placeholder}</span>
+      </div>
+    </div>
   );
 }
 

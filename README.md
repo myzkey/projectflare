@@ -25,8 +25,9 @@ ProjectFlare is not trying to replace Jira, Linear, Notion, Redmine, or OpenProj
 - Workspace and project creation
 - Task creation, status/priority/progress updates, status summary, and simple gantt timeline
 - Task dependency capture for gantt planning
-- Task comments
+- Markdown-backed rich editing for task descriptions, task comments, and wiki pages
 - Markdown wiki page listing, editing, preview, and revision history
+- Image and lightweight video uploads for task and wiki attachments, backed by R2 object storage and D1 metadata
 - GitHub repository linking, webhook intake, issue/comment/PR sync, and queue processing
 - Tokenized generic webhook endpoints, app notifications, and outgoing Slack/Lark/webhook notification channels
 - Generic webhook endpoint that can create tasks from JSON
@@ -101,9 +102,14 @@ ProjectFlare exposes the first MCP tool schema descriptors under `packages/core/
 - `POST /api/tasks/:taskId/dependencies`
 - `GET /api/tasks/:taskId/comments`
 - `POST /api/tasks/:taskId/comments`
+- `GET /api/tasks/:taskId/attachments`
+- `POST /api/tasks/:taskId/attachments`
 - `GET /api/wiki/:pageId`
 - `PATCH /api/wiki/:pageId`
 - `GET /api/wiki/:pageId/revisions`
+- `GET /api/wiki/:pageId/attachments`
+- `POST /api/wiki/:pageId/attachments`
+- `GET /api/attachments/:attachmentId/content`
 - `GET /api/workspaces/:workspaceId/github/repositories`
 - `POST /api/workspaces/:workspaceId/github/repositories`
 - `GET /api/plugins/catalog`
@@ -127,15 +133,17 @@ ProjectFlare exposes the first MCP tool schema descriptors under `packages/core/
 - Create tasks with status, priority, assignee, dates, progress, source, labels, and external URL fields
 - Update task status, priority, progress, dates, and metadata
 - Add and list task comments
+- Upload image or lightweight video attachments to tasks
 - Render a scan-friendly overview with status metrics and a task table
 
 ## Phase 2: Planning And Wiki
 
 - Add task dependencies and show them in the gantt area
-- Create and edit Markdown wiki pages
-- Preview Markdown while editing
+- Create and edit Markdown wiki pages with a Lexical rich editor
+- Keep Markdown as the persisted wiki format
 - Store a wiki revision every time a page is created or updated
 - List wiki revisions for the selected page
+- Upload wiki media and copy Markdown snippets
 
 ## Phase 3: GitHub Sync
 
@@ -170,7 +178,8 @@ The admin UI is a React/Vite app under `apps/web`. It includes:
 
 - Project switcher, summary metrics, task table, and comment panel
 - Gantt-style planning view with dependency labels
-- Markdown wiki editor, preview, page list, and revision list
+- Lexical-powered Markdown editor for task descriptions, comments, and wiki pages
+- Wiki page list, media attachments, and revision list
 - Integration view for GitHub events, generic webhook endpoints, notification channels, and app notifications
 - Language picker covering the currently supported 18 locales
 

@@ -66,6 +66,10 @@ export type Messages = {
     unknown: string;
     emptyComments: string;
     writeComment: string;
+    attachments: string;
+    mediaFile: string;
+    uploadMedia: string;
+    emptyMedia: string;
   };
   plan: {
     timeline: string;
@@ -88,6 +92,11 @@ export type Messages = {
     revisions: string;
     history: string;
     unknown: string;
+    attachments: string;
+    mediaFile: string;
+    uploadMedia: string;
+    copyMarkdown: string;
+    emptyMedia: string;
   };
   integrations: {
     eventCount: (count: number) => string;
@@ -242,6 +251,10 @@ const en: Messages = {
     unknown: "Unknown",
     emptyComments: "Select a task and add the first note.",
     writeComment: "Write a comment",
+    attachments: "Media",
+    mediaFile: "Image or video file",
+    uploadMedia: "Upload media",
+    emptyMedia: "No media yet.",
   },
   plan: {
     timeline: "Timeline",
@@ -264,6 +277,11 @@ const en: Messages = {
     revisions: "Revisions",
     history: "history",
     unknown: "Unknown",
+    attachments: "Media",
+    mediaFile: "Image or video file",
+    uploadMedia: "Upload media",
+    copyMarkdown: "Copy Markdown",
+    emptyMedia: "No media yet.",
   },
   integrations: {
     eventCount: (count) => `${count} events`,
@@ -928,6 +946,10 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       unknown: "不明",
       emptyComments: "タスクを選択して最初のコメントを追加してください。",
       writeComment: "コメントを書く",
+      attachments: "メディア",
+      mediaFile: "画像または動画ファイル",
+      uploadMedia: "メディアをアップロード",
+      emptyMedia: "メディアはまだありません。",
     },
     plan: {
       timeline: "タイムライン",
@@ -950,6 +972,11 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       revisions: "更新履歴",
       history: "履歴",
       unknown: "不明",
+      attachments: "メディア",
+      mediaFile: "画像または動画ファイル",
+      uploadMedia: "メディアをアップロード",
+      copyMarkdown: "Markdown をコピー",
+      emptyMedia: "メディアはまだありません。",
     },
     integrations: {
       eventCount: (count) => `${count} 件のイベント`,

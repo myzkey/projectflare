@@ -64,6 +64,22 @@ export type TaskComment = {
   created_at: string;
 };
 
+export type Attachment = {
+  id: string;
+  workspace_id: string;
+  project_id: string;
+  object_key: string;
+  filename: string;
+  content_type: string;
+  byte_size: number;
+  attachable_type: "task" | "wiki_page";
+  attachable_id: string;
+  created_by_user_id: string | null;
+  created_at: string;
+  url: string;
+  markdown: string;
+};
+
 export type WikiPage = {
   id: string;
   project_id: string;

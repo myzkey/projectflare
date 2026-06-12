@@ -1,5 +1,6 @@
 import type {
   AccessUser,
+  Attachment,
   GitHubEvent,
   GitHubRepository,
   InstalledPlugin,
@@ -37,6 +38,13 @@ function patchJson<T>(path: string, body: unknown): Promise<T> {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(camelCaseKeys(body)),
+  });
+}
+
+async function postForm<T>(path: string, body: FormData): Promise<T> {
+  return requestJson<T>(path, {
+    method: "POST",
+    body,
   });
 }
 
@@ -78,12 +86,18 @@ export const api = {
     postJson<TaskDependency>(`/api/tasks/${taskId}/dependencies`, { dependsOnTaskId }),
   comments: (taskId: string) => requestJson<TaskComment[]>(`/api/tasks/${taskId}/comments`),
   createComment: (taskId: string, body: string) => postJson<TaskComment>(`/api/tasks/${taskId}/comments`, { body }),
+  taskAttachments: (taskId: string) => requestJson<Attachment[]>(`/api/tasks/${taskId}/attachments`),
+  uploadTaskAttachment: (taskId: string, body: FormData) =>
+    postForm<Attachment>(`/api/tasks/${taskId}/attachments`, body),
   wikiPages: (projectId: string) => requestJson<WikiPage[]>(`/api/projects/${projectId}/wiki`),
   saveWikiPage: (projectId: string, pageId: string | null, body: unknown) =>
     pageId
       ? patchJson<WikiPage>(`/api/wiki/${pageId}`, body)
       : postJson<WikiPage>(`/api/projects/${projectId}/wiki`, body),
   wikiRevisions: (pageId: string) => requestJson<WikiRevision[]>(`/api/wiki/${pageId}/revisions`),
+  wikiAttachments: (pageId: string) => requestJson<Attachment[]>(`/api/wiki/${pageId}/attachments`),
+  uploadWikiAttachment: (pageId: string, body: FormData) =>
+    postForm<Attachment>(`/api/wiki/${pageId}/attachments`, body),
   githubRepositories: (workspaceId: string) =>
     requestJson<GitHubRepository[]>(`/api/workspaces/${workspaceId}/github/repositories`),
   createGitHubRepository: (workspaceId: string, body: unknown) =>

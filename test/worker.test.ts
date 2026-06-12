@@ -119,6 +119,58 @@ describe("ProjectFlare worker", () => {
     });
   });
 
+  it("uploads and serves task media without D1", async () => {
+    const form = new FormData();
+    form.set("file", new File([new Uint8Array([137, 80, 78, 71])], "diagram.png", { type: "image/png" }));
+
+    const uploadResponse = await worker.fetch(
+      new Request("http://localhost/api/tasks/tsk_ui/attachments", {
+        method: "POST",
+        body: form,
+      }),
+      env,
+    );
+    const attachment = await readJson(uploadResponse);
+
+    expect(uploadResponse.status).toBe(201);
+    expect(attachment).toMatchObject({
+      filename: "diagram.png",
+      contentType: "image/png",
+      attachableType: "task",
+      attachableId: "tsk_ui",
+    });
+
+    const listResponse = await worker.fetch(new Request("http://localhost/api/tasks/tsk_ui/attachments"), env);
+    await expect(listResponse.json()).resolves.toContainEqual(expect.objectContaining({ id: attachment.id }));
+
+    const contentResponse = await worker.fetch(
+      new Request(`http://localhost/api/attachments/${attachment.id}/content`),
+      env,
+    );
+    expect(contentResponse.status).toBe(200);
+    expect(contentResponse.headers.get("content-type")).toBe("image/png");
+    expect(await contentResponse.arrayBuffer()).toHaveProperty("byteLength", 4);
+
+    const videoForm = new FormData();
+    videoForm.set("file", new File([new Uint8Array([0, 0, 0, 24])], "clip.mp4", { type: "video/mp4" }));
+
+    const videoResponse = await worker.fetch(
+      new Request("http://localhost/api/tasks/tsk_ui/attachments", {
+        method: "POST",
+        body: videoForm,
+      }),
+      env,
+    );
+    const video = await readJson(videoResponse);
+
+    expect(videoResponse.status).toBe(201);
+    expect(video).toMatchObject({
+      filename: "clip.mp4",
+      contentType: "video/mp4",
+      markdown: expect.stringContaining("[clip.mp4]"),
+    });
+  });
+
   it("accepts a GitHub webhook payload without a configured secret", async () => {
     const response = await worker.fetch(
       new Request("http://localhost/api/github/webhook", {
