@@ -2,7 +2,13 @@
 
 Cloudflare-native project management for small teams.
 
-[日本語README](./README.ja.md)
+Read this in:
+[日本語](./README.ja.md) /
+[한국어](./README.ko.md) /
+[简体中文](./README.zh-CN.md) /
+[繁體中文](./README.zh-TW.md) /
+[Español](./README.es.md) /
+[Français](./README.fr.md)
 
 ProjectFlare is a lightweight project OS designed to run on Cloudflare Workers, D1, R2, Queues, and Zero Trust. It is meant for teams that want tasks, gantt planning, wiki notes, GitHub/webhook intake, multilingual admin screens, and eventually MCP access without operating a VPS, Docker host, PostgreSQL, Redis, Nginx, or certificates.
 
