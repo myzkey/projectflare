@@ -36,6 +36,8 @@ Jira、Linear、Notion、Redmine、OpenProject の完全な置き換えを最初
 
 ## 詳細ドキュメント
 
+- [開発者向け](./docs/development.md)
+- [デプロイ](./docs/deployment.md)
 - [アーキテクチャ](./docs/architecture.md)
 
 ## GitHub同期
@@ -49,10 +51,6 @@ Jira、Linear、Notion、Redmine、OpenProject の完全な置き換えを最初
 - PR本文にGitHub Issue URLが含まれる場合、PRイベントから関連タスクの状態を更新
 
 ローカル開発ではGitHub Webhook secretは任意です。本番ではWorker secretとして設定してください。
-
-```sh
-wrangler secret put GITHUB_WEBHOOK_SECRET
-```
 
 ## Webhookと通知
 
@@ -78,91 +76,11 @@ UIで作成したGeneric Webhook tokenは一度だけ表示されます。外部
 
 言語設定は `localStorage` の `projectflare.locale` に保存します。
 
-## ローカルセットアップ
+## デプロイ
 
-このリポジトリでは asdf で Node.js を管理します。
+ProjectFlare は `wrangler.toml` に定義した Cloudflare resource binding と Wrangler でデプロイします。標準の OSS フローでは Terraform や setup shell は必須にしません。
 
-```sh
-asdf install
-pnpm install
-pnpm db:migrate:local
-pnpm dev
-```
-
-`pnpm dev` は Vite で React app を build してから Wrangler を起動します。Wrangler が表示するローカルURLを開くと、ProjectFlareの初期画面を確認できます。
-
-UI だけを素早く確認したい場合は Vite dev server を起動できます。
-
-```sh
-pnpm dev:ui
-```
-
-## 品質チェック
-
-push 前の確認には以下を使います。
-
-```sh
-pnpm check
-pnpm build
-pnpm test:e2e
-```
-
-個別には以下も使えます。
-
-```sh
-pnpm typecheck
-pnpm lint
-pnpm format
-pnpm test
-pnpm test:e2e
-```
-
-## コミットメッセージ
-
-ProjectFlare は Conventional Commits に準拠します。コミットメッセージは Husky 経由の commitlint で検証されます。
-
-例:
-
-```txt
-feat: add workspace invitations
-fix: handle missing webhook endpoint
-refactor: extract task use cases
-test: cover github webhook processing
-```
-
-## Cloudflareへのセットアップ
-
-ProjectFlare は EmDash と同じく Wrangler-first のデプロイ方針にします。Cloudflare resource は `wrangler.toml` に binding として定義し、アプリは `pnpm deploy` で build/deploy します。標準の OSS フローでは setup shell や Terraform module は必須にしません。
-
-1. D1 database を作成します。
-
-```sh
-wrangler d1 create projectflare
-```
-
-2. 生成された `database_id` を `wrangler.toml` に設定します。
-3. R2 bucket を作成します。
-
-```sh
-wrangler r2 bucket create projectflare-files
-```
-
-4. Queue を作成します。
-
-```sh
-wrangler queues create projectflare-events
-```
-
-5. マイグレーションを適用してデプロイします。
-
-```sh
-pnpm db:migrate
-pnpm deploy
-```
-
-6. Worker を Cloudflare Access の背後に置きます。ProjectFlare は `CF-Access-Authenticated-User-Email`、`CF-Access-Authenticated-User-Name`、`Cf-Access-Groups` があれば読み取り、内部ユーザーとして扱います。
-
-`wrangler.toml` は Worker binding の source of truth として扱います。D1、R2、Queues、Access、secrets などの初回作成は Cloudflare dashboard または Wrangler CLI で行います。
+D1、R2、Queues、Access、secrets、migration、deploy command は [デプロイドキュメント](./docs/deployment.md) を参照してください。
 
 ## Generic Webhook
 

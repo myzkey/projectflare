@@ -36,8 +36,10 @@ ProjectFlare is not trying to replace Jira, Linear, Notion, Redmine, or OpenProj
 - Use the admin UI in 18 locales: `ar`, `de`, `en`, `es-419`, `es-ES`, `eu`, `fa`, `fr`, `id`, `ja`, `ko`, `nb`, `pl`, `pseudo`, `pt-BR`, `th`, `zh-CN`, and `zh-TW`
 - Use RTL layout for Arabic and Persian
 
-## More Documentation
+## Documentation
 
+- [Development](./docs/development.md)
+- [Deployment](./docs/deployment.md)
 - [Architecture](./docs/architecture.md)
 
 ## GitHub Sync
@@ -50,11 +52,7 @@ ProjectFlare is not trying to replace Jira, Linear, Notion, Redmine, or OpenProj
 - Sync GitHub issue comments into task comments
 - Update linked tasks from pull request events when the PR body contains GitHub issue URLs
 
-For local development, the GitHub webhook secret is optional. In production, set `GITHUB_WEBHOOK_SECRET` as a Worker secret:
-
-```sh
-wrangler secret put GITHUB_WEBHOOK_SECRET
-```
+For local development, the GitHub webhook secret is optional. In production, set `GITHUB_WEBHOOK_SECRET` as a Worker secret.
 
 ## Webhooks And Notifications
 
@@ -80,91 +78,11 @@ The admin UI is a React/Vite app under `apps/web`. It includes:
 
 The language choice is stored in `localStorage` as `projectflare.locale`.
 
-## Local Setup
+## Deployment
 
-ProjectFlare uses asdf for Node.js version management.
+ProjectFlare is deployed with Wrangler and the Cloudflare resources declared in `wrangler.toml`. The default OSS flow does not require Terraform or a setup shell script.
 
-```sh
-asdf install
-pnpm install
-pnpm db:migrate:local
-pnpm dev
-```
-
-`pnpm dev` builds the React app with Vite, then starts Wrangler. Open the URL printed by Wrangler.
-
-For UI-only iteration, run the Vite dev server:
-
-```sh
-pnpm dev:ui
-```
-
-## Quality Checks
-
-Run the full local gate before pushing:
-
-```sh
-pnpm check
-pnpm build
-pnpm test:e2e
-```
-
-Useful individual commands:
-
-```sh
-pnpm typecheck
-pnpm lint
-pnpm format
-pnpm test
-pnpm test:e2e
-```
-
-## Commit Messages
-
-ProjectFlare uses Conventional Commits. Commit messages are checked by commitlint through Husky.
-
-Examples:
-
-```txt
-feat: add workspace invitations
-fix: handle missing webhook endpoint
-refactor: extract task use cases
-test: cover github webhook processing
-```
-
-## Cloudflare Setup
-
-ProjectFlare follows the same Wrangler-first deployment shape as EmDash. Cloudflare resources are declared in `wrangler.toml`, and the app is built and deployed through `pnpm deploy`. A setup shell script or Terraform module is intentionally not required for the default OSS flow.
-
-1. Create a D1 database:
-
-```sh
-wrangler d1 create projectflare
-```
-
-2. Copy the generated `database_id` into `wrangler.toml`.
-3. Create an R2 bucket:
-
-```sh
-wrangler r2 bucket create projectflare-files
-```
-
-4. Create the queue:
-
-```sh
-wrangler queues create projectflare-events
-```
-
-5. Apply migrations and deploy:
-
-```sh
-pnpm db:migrate
-pnpm deploy
-```
-
-6. Put the Worker behind Cloudflare Access. ProjectFlare reads `CF-Access-Authenticated-User-Email`, `CF-Access-Authenticated-User-Name`, and `Cf-Access-Groups` when present.
-
-`wrangler.toml` remains the source of truth for Worker bindings. Use Cloudflare dashboard or Wrangler CLI for one-time account resources such as D1, R2, Queues, Access, and secrets.
+See [Deployment](./docs/deployment.md) for D1, R2, Queues, Access, secrets, migrations, and deploy commands.
 
 ## Generic Webhook
 
