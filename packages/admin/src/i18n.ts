@@ -158,6 +158,11 @@ export type Messages = {
   language: {
     label: string;
   };
+  pwa: {
+    offline: string;
+    updateAvailable: string;
+    updateNow: string;
+  };
 };
 
 type MessageOverrides = {
@@ -359,6 +364,11 @@ const en: Messages = {
   },
   language: {
     label: "Language",
+  },
+  pwa: {
+    offline: "Offline. Live data will refresh after reconnecting.",
+    updateAvailable: "A new version is available.",
+    updateNow: "Update",
   },
 };
 
@@ -632,6 +642,11 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       storageCount: (count) => `${count} stores`,
     },
     language: { label: "Idioma" },
+    pwa: {
+      offline: "Sin conexión. Los datos se actualizarán al reconectar.",
+      updateAvailable: "Hay una nueva versión disponible.",
+      updateNow: "Actualizar",
+    },
   },
   "es-ES": {
     appSubtitle: "Sistema de proyectos nativo de Cloudflare",
@@ -761,6 +776,11 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       storageCount: (count) => `${count} stores`,
     },
     language: { label: "Idioma" },
+    pwa: {
+      offline: "Sin conexión. Los datos se actualizarán al reconectar.",
+      updateAvailable: "Hay una nueva versión disponible.",
+      updateNow: "Actualizar",
+    },
   },
   eu: {
     appSubtitle: "Cloudflare-natiboko proiektu OSa",
@@ -1044,6 +1064,11 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       storageCount: (count) => `${count} stores`,
     },
     language: { label: "Langue" },
+    pwa: {
+      offline: "Hors ligne. Les données seront actualisées après reconnexion.",
+      updateAvailable: "Une nouvelle version est disponible.",
+      updateNow: "Mettre à jour",
+    },
   },
   id: {
     appSubtitle: "OS proyek native Cloudflare",
@@ -1240,6 +1265,11 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       storageCount: (count) => `${count} storage`,
     },
     language: { label: "言語" },
+    pwa: {
+      offline: "オフラインです。再接続後に最新データを取得します。",
+      updateAvailable: "新しいバージョンがあります。",
+      updateNow: "更新",
+    },
   },
   ko: {
     appSubtitle: "Cloudflare 네이티브 프로젝트 OS",
@@ -1369,6 +1399,11 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       storageCount: (count) => `${count}개 store`,
     },
     language: { label: "언어" },
+    pwa: {
+      offline: "오프라인입니다. 다시 연결되면 최신 데이터를 가져옵니다.",
+      updateAvailable: "새 버전을 사용할 수 있습니다.",
+      updateNow: "업데이트",
+    },
   },
   nb: {
     appSubtitle: "Cloudflare-nativt prosjekt-OS",
@@ -1837,6 +1872,11 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       storageCount: (count) => `${count} 个 store`,
     },
     language: { label: "语言" },
+    pwa: {
+      offline: "当前离线。重新连接后会刷新实时数据。",
+      updateAvailable: "有新版本可用。",
+      updateNow: "更新",
+    },
   },
   "zh-TW": {
     appSubtitle: "Cloudflare 原生專案 OS",
@@ -1966,6 +2006,11 @@ const overrides: Partial<Record<Exclude<Locale, "en">, MessageOverrides>> = {
       storageCount: (count) => `${count} 個 store`,
     },
     language: { label: "語言" },
+    pwa: {
+      offline: "目前離線。重新連線後會刷新即時資料。",
+      updateAvailable: "有新版本可用。",
+      updateNow: "更新",
+    },
   },
 };
 
@@ -1988,6 +2033,7 @@ function mergeMessages(base: Messages, override: MessageOverrides | undefined): 
     integrations: { ...base.integrations, ...override.integrations },
     plugins: { ...base.plugins, ...override.plugins },
     language: { ...base.language, ...override.language },
+    pwa: { ...base.pwa, ...override.pwa },
   };
 }
 

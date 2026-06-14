@@ -31,6 +31,7 @@ ProjectFlare no intenta reemplazar Jira, Linear, Notion, Redmine u OpenProject d
 - Crear endpoints Generic Webhook con token que convierten JSON externo en tareas
 - Enviar notificaciones de la app y notificaciones salientes por Slack, Lark o Generic Webhook
 - Instalar plugins first-party con capabilities, hooks, routes y almacenamiento con scope de plugin
+- Instalar la UI de administración como PWA con fallback de app shell sin conexión y notificación de actualización
 - Usar la UI de administración en 18 locales: `ar`, `de`, `en`, `es-419`, `es-ES`, `eu`, `fa`, `fr`, `id`, `ja`, `ko`, `nb`, `pl`, `pseudo`, `pt-BR`, `th`, `zh-CN` y `zh-TW`
 - Usar layout RTL para árabe y persa
 

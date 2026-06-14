@@ -237,6 +237,10 @@ button {
   border-color: var(--coral);
 }
 
+.toast.warning {
+  border-color: var(--amber);
+}
+
 .toast button {
   border: 0;
   background: transparent;

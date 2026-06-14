@@ -31,6 +31,7 @@ Jira、Linear、Notion、Redmine、OpenProject の完全な置き換えを最初
 - 外部JSONからタスクを作成するトークン付き Generic Webhook endpoint
 - アプリ内通知、Slack、Lark、汎用 Webhook への送信通知
 - capability、hook、route、plugin scoped storage を宣言する first-party plugin
+- 管理画面を PWA としてインストールし、オフライン時の app shell fallback と更新通知に対応
 - `ar`、`de`、`en`、`es-419`、`es-ES`、`eu`、`fa`、`fr`、`id`、`ja`、`ko`、`nb`、`pl`、`pseudo`、`pt-BR`、`th`、`zh-CN`、`zh-TW` の18ロケール対応
 - アラビア語とペルシア語のRTL表示
 

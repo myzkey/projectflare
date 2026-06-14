@@ -29,6 +29,7 @@ import type {
   Workspace,
 } from "../../../packages/admin/src/types";
 import { type AppTab, tabIcon } from "./components";
+import { applyServiceWorkerUpdate, type ServiceWorkerUpdateEvent } from "./pwa";
 import { Integrations, Overview, Plan, Plugins, Wiki } from "./views";
 
 const tabs = ["overview", "plan", "wiki", "integrations", "plugins"] as const;
@@ -65,6 +66,8 @@ export function App() {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(() => (typeof navigator === "undefined" ? false : !navigator.onLine));
+  const [serviceWorkerUpdate, setServiceWorkerUpdate] = useState<ServiceWorkerRegistration | null>(null);
 
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? tasks[0] ?? null;
   const selectedWikiPage = wikiPages.find((page) => page.id === selectedWikiPageId) ?? wikiPages[0] ?? null;
@@ -94,6 +97,29 @@ export function App() {
     document.documentElement.dir = localeDirections[locale];
     localStorage.setItem("projectflare.locale", locale);
   }, [locale]);
+
+  useEffect(() => {
+    function handleOnline() {
+      setIsOffline(false);
+    }
+
+    function handleOffline() {
+      setIsOffline(true);
+    }
+
+    function handleServiceWorkerUpdate(event: ServiceWorkerUpdateEvent) {
+      setServiceWorkerUpdate(event.detail);
+    }
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("projectflare:sw-update", handleServiceWorkerUpdate);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("projectflare:sw-update", handleServiceWorkerUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     setCommentLimit(initialCommentLimit);
@@ -508,6 +534,21 @@ export function App() {
             </button>
           </div>
         </header>
+
+        {isOffline && (
+          <div className="toast warning" role="status">
+            {messages.pwa.offline}
+          </div>
+        )}
+
+        {serviceWorkerUpdate && (
+          <div className="toast" role="status">
+            {messages.pwa.updateAvailable}
+            <button type="button" onClick={() => applyServiceWorkerUpdate(serviceWorkerUpdate)}>
+              {messages.pwa.updateNow}
+            </button>
+          </div>
+        )}
 
         {(error || notice) && (
           <div className={error ? "toast error" : "toast"}>

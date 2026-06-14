@@ -31,6 +31,7 @@ ProjectFlare 不打算一次取代 Jira、Linear、Notion、Redmine 或 OpenProj
 - 建立帶 token 的 Generic Webhook endpoint，將外部 JSON 轉換成任務
 - 傳送應用內通知，以及 Slack、Lark 或 Generic Webhook 外送通知
 - 安裝宣告 capability、hook、route 和 plugin-scoped storage 的 first-party plugin
+- 將管理 UI 安裝為 PWA，支援離線 app shell fallback 和更新通知
 - 管理 UI 支援 18 個 locale：`ar`, `de`, `en`, `es-419`, `es-ES`, `eu`, `fa`, `fr`, `id`, `ja`, `ko`, `nb`, `pl`, `pseudo`, `pt-BR`, `th`, `zh-CN`, `zh-TW`
 - 支援阿拉伯語和波斯語 RTL layout
 
